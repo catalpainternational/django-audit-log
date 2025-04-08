@@ -18,6 +18,16 @@ INSTALLED_APPS = [
 ]
 ```
 
+Add "django_audit_log.middleware.AuditLogMiddleware" to your `MIDDLEWARE` setting
+```python
+MIDDLEWARE = [
+    # ...
+    "django_audit_log.middleware.AuditLogMiddleware",
+    # ...
+]
+```
+
+
 ## Features
 
 - Logs HTTP requests and responses
