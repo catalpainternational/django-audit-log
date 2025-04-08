@@ -4,21 +4,14 @@ This is mostly taken from the request
 and intended to be used with the "AccessLogMixin"
 """
 
-from collections import defaultdict, namedtuple
-from collections.abc import Iterable
-from functools import reduce
-from operator import or_
-from typing import Dict, List, Optional, Tuple, Union, Any, NamedTuple
+from typing import Dict, Optional, Any, NamedTuple
 from urllib.parse import urlparse
 import random
 import re
 
 # Django imports
 from django.conf import settings
-from django.contrib.auth.models import Group, User
-from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import Case, F, Q, QuerySet, When
 from django.http.request import HttpRequest
 from django.http.response import HttpResponse
 from django.urls import Resolver404, resolve
@@ -427,7 +420,7 @@ class AccessLog(models.Model):
             return None
 
     @classmethod
-    def _check_sampling(cls, request: HttpRequest) -> AccessLog.SamplingResult:
+    def _check_sampling(cls, request: HttpRequest) -> "AccessLog.SamplingResult":
         """
         Check if a request should be logged based on sampling settings.
 

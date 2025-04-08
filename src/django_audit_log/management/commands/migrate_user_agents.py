@@ -25,7 +25,7 @@ class Command(BaseCommand):
 
         # Get initial statistics
         initial_stats = get_user_agent_statistics()
-        self.stdout.write(self.style.SUCCESS(f"Initial Statistics:"))
+        self.stdout.write(self.style.SUCCESS("Initial Statistics:"))
         self.stdout.write(f"Total logs: {initial_stats['total_logs']}")
         self.stdout.write(
             f"Normalized logs: {initial_stats['normalized_logs']} ({initial_stats['normalized_percentage']:.1f}%)"
@@ -61,7 +61,7 @@ class Command(BaseCommand):
 
         # Get final statistics
         final_stats = get_user_agent_statistics()
-        self.stdout.write(self.style.SUCCESS(f"Final Statistics:"))
+        self.stdout.write(self.style.SUCCESS("Final Statistics:"))
         self.stdout.write(
             f"Normalized logs: {final_stats['normalized_logs']} ({final_stats['normalized_percentage']:.1f}%)"
         )
@@ -69,19 +69,19 @@ class Command(BaseCommand):
         self.stdout.write(f"Unique user agents: {final_stats['unique_user_agents']}")
 
         # Show top browsers
-        self.stdout.write(self.style.SUCCESS(f"Top Browsers:"))
+        self.stdout.write(self.style.SUCCESS("Top Browsers:"))
         for browser in final_stats["top_browsers"]:
             self.stdout.write(
                 f"  {browser['browser'] or 'Unknown'}: {browser['count']}"
             )
 
         # Show top operating systems
-        self.stdout.write(self.style.SUCCESS(f"Top Operating Systems:"))
+        self.stdout.write(self.style.SUCCESS("Top Operating Systems:"))
         for os in final_stats["top_os"]:
             self.stdout.write(f"  {os['operating_system'] or 'Unknown'}: {os['count']}")
 
         # Show device types
-        self.stdout.write(self.style.SUCCESS(f"Device Types:"))
+        self.stdout.write(self.style.SUCCESS("Device Types:"))
         for device in final_stats["device_types"]:
             self.stdout.write(
                 f"  {device['device_type'] or 'Unknown'}: {device['count']}"
