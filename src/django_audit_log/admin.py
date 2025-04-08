@@ -1,5 +1,12 @@
 from django.contrib import admin
-from .models import AccessLog, LogIpAddress, LogPath, LogSessionKey, LogUser, LogUserAgent
+from .models import (
+    AccessLog,
+    LogIpAddress,
+    LogPath,
+    LogSessionKey,
+    LogUser,
+    LogUserAgent,
+)
 from django.db import models
 from django.utils.safestring import mark_safe
 from django.contrib.admin import SimpleListFilter
@@ -9,6 +16,7 @@ import re
 
 try:
     from rangefilter.filters import DateRangeFilter
+
     HAS_RANGE_FILTER = True
 except ImportError:
     HAS_RANGE_FILTER = False
@@ -17,271 +25,333 @@ except ImportError:
 # Base admin classes
 class ReadOnlyAdmin(admin.ModelAdmin):
     """Base admin class for read-only models."""
-    
+
     def has_add_permission(self, request):
         return False
-        
+
     def has_change_permission(self, request, obj=None):
         return False
-        
+
     def has_delete_permission(self, request, obj=None):
         return False
 
 
 class BrowserTypeFilter(SimpleListFilter):
     """Filter logs by browser type."""
-    title = 'Browser'
-    parameter_name = 'browser_type'
+
+    title = "Browser"
+    parameter_name = "browser_type"
 
     def lookups(self, request, model_admin):
         return (
-            ('chrome', 'Chrome'),
-            ('firefox', 'Firefox'),
-            ('safari', 'Safari'),
-            ('edge', 'Edge'),
-            ('ie', 'Internet Explorer'),
-            ('opera', 'Opera'),
-            ('mobile', 'Mobile Browsers'),
-            ('bots', 'Bots/Crawlers'),
-            ('other', 'Other Browsers'),
+            ("chrome", "Chrome"),
+            ("firefox", "Firefox"),
+            ("safari", "Safari"),
+            ("edge", "Edge"),
+            ("ie", "Internet Explorer"),
+            ("opera", "Opera"),
+            ("mobile", "Mobile Browsers"),
+            ("bots", "Bots/Crawlers"),
+            ("other", "Other Browsers"),
         )
 
     def queryset(self, request, queryset):
         if not self.value():
             return queryset
-            
+
         value = self.value()
-        
+
         # First try to filter using the normalized model
-        if value == 'chrome':
+        if value == "chrome":
             return queryset.filter(
-                models.Q(user_agent_normalized__browser='Chrome') |
+                models.Q(user_agent_normalized__browser="Chrome")
+                |
                 # Fall back to text search for older records
                 models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='Chrome'
+                    user_agent_normalized__isnull=True, user_agent__icontains="Chrome"
                 )
             ).exclude(
-                models.Q(user_agent_normalized__isnull=True, user_agent__icontains='Chromium') |
-                models.Q(user_agent_normalized__browser='Chromium')
+                models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="Chromium"
+                )
+                | models.Q(user_agent_normalized__browser="Chromium")
             )
-        elif value == 'firefox':
+        elif value == "firefox":
             return queryset.filter(
-                models.Q(user_agent_normalized__browser='Firefox') |
+                models.Q(user_agent_normalized__browser="Firefox")
+                |
                 # Fall back to text search for older records
                 models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='Firefox'
+                    user_agent_normalized__isnull=True, user_agent__icontains="Firefox"
                 )
             )
-        elif value == 'safari':
+        elif value == "safari":
             return queryset.filter(
-                models.Q(user_agent_normalized__browser='Safari') |
+                models.Q(user_agent_normalized__browser="Safari")
+                |
                 # Fall back to text search for older records
                 models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='Safari'
+                    user_agent_normalized__isnull=True, user_agent__icontains="Safari"
                 )
             ).exclude(
-                models.Q(user_agent_normalized__isnull=True, user_agent__icontains='Chrome') |
-                models.Q(user_agent_normalized__browser='Chrome')
+                models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="Chrome"
+                )
+                | models.Q(user_agent_normalized__browser="Chrome")
             )
-        elif value == 'edge':
+        elif value == "edge":
             return queryset.filter(
-                models.Q(user_agent_normalized__browser='Edge') |
+                models.Q(user_agent_normalized__browser="Edge")
+                |
+                # Fall back to text search for older records
+                models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="Edge"
+                )
+                | models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="Edg/"
+                )
+            )
+        elif value == "ie":
+            return queryset.filter(
+                models.Q(user_agent_normalized__browser="Internet Explorer")
+                |
+                # Fall back to text search for older records
+                models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="MSIE"
+                )
+                | models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="Trident"
+                )
+            )
+        elif value == "opera":
+            return queryset.filter(
+                models.Q(user_agent_normalized__browser="Opera")
+                |
+                # Fall back to text search for older records
+                models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="OPR/"
+                )
+                | models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="Opera"
+                )
+            )
+        elif value == "mobile":
+            return queryset.filter(
+                models.Q(user_agent_normalized__device_type="Mobile")
+                |
+                # Fall back to text search for older records
+                models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="Mobile"
+                )
+                | models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="Android"
+                )
+                | models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="iPhone"
+                )
+                | models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="iPad"
+                )
+            )
+        elif value == "bots":
+            return queryset.filter(
+                models.Q(user_agent_normalized__is_bot=True)
+                |
                 # Fall back to text search for older records
                 models.Q(
                     user_agent_normalized__isnull=True,
-                    user_agent__icontains='Edge'
-                ) | 
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='Edg/'
+                    user_agent__iregex=r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu",
                 )
             )
-        elif value == 'ie':
-            return queryset.filter(
-                models.Q(user_agent_normalized__browser='Internet Explorer') |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='MSIE'
-                ) | 
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='Trident'
-                )
-            )
-        elif value == 'opera':
-            return queryset.filter(
-                models.Q(user_agent_normalized__browser='Opera') |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='OPR/'
-                ) | 
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='Opera'
-                )
-            )
-        elif value == 'mobile':
-            return queryset.filter(
-                models.Q(user_agent_normalized__device_type='Mobile') |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='Mobile'
-                ) | 
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='Android'
-                ) |
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='iPhone'
-                ) |
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='iPad'
-                )
-            )
-        elif value == 'bots':
-            return queryset.filter(
-                models.Q(user_agent_normalized__is_bot=True) |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__iregex=r'bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu'
-                )
-            )
-        elif value == 'other':
-            major_browsers = ['Chrome', 'Firefox', 'Safari', 'Edge', 'Internet Explorer', 'Opera']
+        elif value == "other":
+            major_browsers = [
+                "Chrome",
+                "Firefox",
+                "Safari",
+                "Edge",
+                "Internet Explorer",
+                "Opera",
+            ]
             # First exclude all known major browsers in normalized form
             q = models.Q(user_agent_normalized__browser__in=major_browsers)
-            
+
             # Then handle older non-normalized records
             legacy_conditions = []
-            for browser in ['Chrome', 'Firefox', 'Safari', 'Edge', 'Edg/', 'MSIE', 'Trident', 'OPR/', 'Opera']:
+            for browser in [
+                "Chrome",
+                "Firefox",
+                "Safari",
+                "Edge",
+                "Edg/",
+                "MSIE",
+                "Trident",
+                "OPR/",
+                "Opera",
+            ]:
                 legacy_conditions.append(
-                    models.Q(user_agent_normalized__isnull=True, user_agent__icontains=browser)
+                    models.Q(
+                        user_agent_normalized__isnull=True,
+                        user_agent__icontains=browser,
+                    )
                 )
-            
+
             # Combine all legacy conditions with OR
             legacy_q = legacy_conditions[0]
             for condition in legacy_conditions[1:]:
                 legacy_q |= condition
-                
+
             # Combine modern and legacy exclusions
             return queryset.exclude(q | legacy_q)
 
 
 class DeviceTypeFilter(SimpleListFilter):
     """Filter logs by device type."""
-    title = 'Device Type'
-    parameter_name = 'device_type'
+
+    title = "Device Type"
+    parameter_name = "device_type"
 
     def lookups(self, request, model_admin):
         return (
-            ('desktop', 'Desktop'),
-            ('mobile', 'Mobile'),
-            ('tablet', 'Tablet'),
-            ('bot', 'Bot/Crawler'),
+            ("desktop", "Desktop"),
+            ("mobile", "Mobile"),
+            ("tablet", "Tablet"),
+            ("bot", "Bot/Crawler"),
         )
 
     def queryset(self, request, queryset):
         if not self.value():
             return queryset
-            
+
         value = self.value()
-        if value == 'mobile':
+        if value == "mobile":
             return queryset.filter(
-                models.Q(user_agent_normalized__device_type='Mobile') |
+                models.Q(user_agent_normalized__device_type="Mobile")
+                |
                 # Fall back to text search for older records
                 models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='Mobile'
-                ) |
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='iPhone'
-                ) |
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='iPod'
+                    user_agent_normalized__isnull=True, user_agent__icontains="Mobile"
+                )
+                | models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="iPhone"
+                )
+                | models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="iPod"
                 )
             ).exclude(
-                models.Q(user_agent_normalized__isnull=True, user_agent__icontains='iPad')
+                models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="iPad"
+                )
             )
-        elif value == 'tablet':
+        elif value == "tablet":
             return queryset.filter(
-                models.Q(user_agent_normalized__device_type='Tablet') |
+                models.Q(user_agent_normalized__device_type="Tablet")
+                |
                 # Fall back to text search for older records
                 models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='Tablet'
-                ) |
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='iPad'
-                ) |
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__icontains='Android'
+                    user_agent_normalized__isnull=True, user_agent__icontains="Tablet"
+                )
+                | models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="iPad"
+                )
+                | models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="Android"
                 )
             ).exclude(
-                models.Q(user_agent_normalized__isnull=True, user_agent__icontains='Mobile')
+                models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains="Mobile"
+                )
             )
-        elif value == 'bot':
+        elif value == "bot":
             return queryset.filter(
-                models.Q(user_agent_normalized__is_bot=True) |
+                models.Q(user_agent_normalized__is_bot=True)
+                |
                 # Fall back to text search for older records
                 models.Q(
                     user_agent_normalized__isnull=True,
-                    user_agent__iregex=r'bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu'
+                    user_agent__iregex=r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu",
                 )
             )
-        elif value == 'desktop':
+        elif value == "desktop":
             # First try with normalized data
             desktop_query = models.Q(
-                user_agent_normalized__device_type='Desktop',
-                user_agent_normalized__is_bot=False
+                user_agent_normalized__device_type="Desktop",
+                user_agent_normalized__is_bot=False,
             )
-            
+
             # Then handle legacy non-normalized data
             mobile_tablet_patterns = [
-                'Mobile', 'Tablet', 'iPhone', 'iPad', 'iPod', 'Android'
+                "Mobile",
+                "Tablet",
+                "iPhone",
+                "iPad",
+                "iPod",
+                "Android",
             ]
             legacy_q_objects = [
-                models.Q(user_agent_normalized__isnull=True, user_agent__icontains=pattern) 
+                models.Q(
+                    user_agent_normalized__isnull=True, user_agent__icontains=pattern
+                )
                 for pattern in mobile_tablet_patterns
             ]
-            
+
             # Combine all legacy mobile/tablet conditions with OR
             if legacy_q_objects:
                 legacy_mobile_tablet_q = legacy_q_objects[0]
                 for q in legacy_q_objects[1:]:
                     legacy_mobile_tablet_q |= q
-                    
-                bot_pattern = r'bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu'
-                legacy_desktop_query = models.Q(user_agent_normalized__isnull=True) & ~legacy_mobile_tablet_q & ~models.Q(user_agent__iregex=bot_pattern)
-                
+
+                bot_pattern = r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu"
+                legacy_desktop_query = (
+                    models.Q(user_agent_normalized__isnull=True)
+                    & ~legacy_mobile_tablet_q
+                    & ~models.Q(user_agent__iregex=bot_pattern)
+                )
+
                 # Combine modern and legacy queries
                 return queryset.filter(desktop_query | legacy_desktop_query)
-            
+
             return queryset.filter(desktop_query)
 
 
 class AccessLogAdmin(ReadOnlyAdmin):
     """Admin class for AccessLog model."""
-    list_display = ('method', 'path', 'status_code', 'user', 'ip', 'browser_type', 'timestamp')
-    list_filter = ('method', 'status_code', 'user', 'ip', BrowserTypeFilter, DeviceTypeFilter, 'timestamp')
-    search_fields = ('path__path', 'user__user_name', 'ip__address', 'user_agent')
-    date_hierarchy = 'timestamp'
-    readonly_fields = ('path', 'referrer', 'response_url', 'method', 'data', 
-                      'status_code', 'user_agent', 'user_agent_normalized', 'normalized_user_agent', 
-                      'user', 'session_key', 'ip', 'timestamp')
-    
+
+    list_display = (
+        "method",
+        "path",
+        "status_code",
+        "user",
+        "ip",
+        "browser_type",
+        "timestamp",
+    )
+    list_filter = (
+        "method",
+        "status_code",
+        "user",
+        "ip",
+        BrowserTypeFilter,
+        DeviceTypeFilter,
+        "timestamp",
+    )
+    search_fields = ("path__path", "user__user_name", "ip__address", "user_agent")
+    date_hierarchy = "timestamp"
+    readonly_fields = (
+        "path",
+        "referrer",
+        "response_url",
+        "method",
+        "data",
+        "status_code",
+        "user_agent",
+        "user_agent_normalized",
+        "normalized_user_agent",
+        "user",
+        "session_key",
+        "ip",
+        "timestamp",
+    )
+
     def browser_type(self, obj):
         """Return a simplified browser type."""
         if obj.user_agent_normalized:
@@ -289,28 +359,29 @@ class AccessLogAdmin(ReadOnlyAdmin):
         elif obj.user_agent:
             # Fall back to UserAgentUtil for older records
             ua_info = UserAgentUtil.normalize_user_agent(obj.user_agent)
-            return ua_info['browser']
+            return ua_info["browser"]
         return "Unknown"
-    browser_type.short_description = 'Browser'
-    
+
+    browser_type.short_description = "Browser"
+
     def normalized_user_agent(self, obj):
         """Show the normalized user agent info."""
         if obj.user_agent_normalized:
             # Use pre-parsed data from the model
             ua_info = {
-                'browser': obj.user_agent_normalized.browser,
-                'browser_version': obj.user_agent_normalized.browser_version,
-                'os': obj.user_agent_normalized.operating_system,
-                'device_type': obj.user_agent_normalized.device_type,
-                'is_bot': obj.user_agent_normalized.is_bot,
-                'raw': obj.user_agent or obj.user_agent_normalized.user_agent
+                "browser": obj.user_agent_normalized.browser,
+                "browser_version": obj.user_agent_normalized.browser_version,
+                "os": obj.user_agent_normalized.operating_system,
+                "device_type": obj.user_agent_normalized.device_type,
+                "is_bot": obj.user_agent_normalized.is_bot,
+                "raw": obj.user_agent or obj.user_agent_normalized.user_agent,
             }
         elif obj.user_agent:
             # Fall back to UserAgentUtil for older records
             ua_info = UserAgentUtil.normalize_user_agent(obj.user_agent)
         else:
             return "No user agent data"
-            
+
         html = f"""
         <style>
             .ua-info {{ margin: 10px 0; }}
@@ -330,103 +401,103 @@ class AccessLogAdmin(ReadOnlyAdmin):
             <div class="ua-raw">{ua_info['raw']}</div>
         </div>
         """
-        
+
         return mark_safe(html)
-    normalized_user_agent.short_description = 'Normalized User Agent'
-    
+
+    normalized_user_agent.short_description = "Normalized User Agent"
+
     def changelist_view(self, request, extra_context=None):
         """Override to add user agent statistics to the changelist view."""
         # Only add stats if we're not filtering
         if len(request.GET) <= 1:  # Just the page number or nothing
             extra_context = extra_context or {}
-            extra_context['user_agent_summary'] = self.get_user_agent_summary()
+            extra_context["user_agent_summary"] = self.get_user_agent_summary()
         return super().changelist_view(request, extra_context=extra_context)
-    
+
     def get_user_agent_summary(self):
         """Generate a summary of user agent statistics."""
         from django.db.models import Count
-        
+
         # Get normalized user agent data with counts
-        normalized_user_agents = LogUserAgent.objects.annotate(
-            count=Count('access_logs')
-        ).values(
-            'browser', 'operating_system', 'device_type', 'is_bot', 'count'
-        ).order_by('-count')[:1000]  # Limit to 1000 most common for performance
-        
+        normalized_user_agents = (
+            LogUserAgent.objects.annotate(count=Count("access_logs"))
+            .values("browser", "operating_system", "device_type", "is_bot", "count")
+            .order_by("-count")[:1000]
+        )  # Limit to 1000 most common for performance
+
         # Get legacy user agent data (for records with user_agent_normalized=NULL)
-        legacy_user_agents = AccessLog.objects.filter(
-            user_agent_normalized__isnull=True,
-            user_agent__isnull=False
-        ).exclude(
-            user_agent=''
-        ).values_list(
-            'user_agent'
-        ).annotate(
-            count=Count('user_agent')
-        ).order_by('-count')[:1000]
-        
+        legacy_user_agents = (
+            AccessLog.objects.filter(
+                user_agent_normalized__isnull=True, user_agent__isnull=False
+            )
+            .exclude(user_agent="")
+            .values_list("user_agent")
+            .annotate(count=Count("user_agent"))
+            .order_by("-count")[:1000]
+        )
+
         if not normalized_user_agents and not legacy_user_agents:
             return "No user agent data available"
-        
+
         # Initialize categories
         categories = {
-            'browsers': {},
-            'operating_systems': {},
-            'device_types': {},
-            'bots': 0,
-            'total': 0
+            "browsers": {},
+            "operating_systems": {},
+            "device_types": {},
+            "bots": 0,
+            "total": 0,
         }
-        
+
         # Process normalized user agents (more efficient)
         for agent in normalized_user_agents:
-            count = agent['count']
-            categories['total'] += count
-            
+            count = agent["count"]
+            categories["total"] += count
+
             # Add to browser counts
-            browser = agent['browser'] or 'Unknown'
-            if browser not in categories['browsers']:
-                categories['browsers'][browser] = 0
-            categories['browsers'][browser] += count
-            
+            browser = agent["browser"] or "Unknown"
+            if browser not in categories["browsers"]:
+                categories["browsers"][browser] = 0
+            categories["browsers"][browser] += count
+
             # Add to OS counts
-            os = agent['operating_system'] or 'Unknown'
-            if os not in categories['operating_systems']:
-                categories['operating_systems'][os] = 0
-            categories['operating_systems'][os] += count
-            
+            os = agent["operating_system"] or "Unknown"
+            if os not in categories["operating_systems"]:
+                categories["operating_systems"][os] = 0
+            categories["operating_systems"][os] += count
+
             # Add to device type counts
-            device = agent['device_type'] or 'Unknown'
-            if device not in categories['device_types']:
-                categories['device_types'][device] = 0
-            categories['device_types'][device] += count
-            
+            device = agent["device_type"] or "Unknown"
+            if device not in categories["device_types"]:
+                categories["device_types"][device] = 0
+            categories["device_types"][device] += count
+
             # Count bots
-            if agent['is_bot']:
-                categories['bots'] += count
-        
+            if agent["is_bot"]:
+                categories["bots"] += count
+
         # Process legacy user agents
         if legacy_user_agents:
             legacy_categories = UserAgentUtil.categorize_user_agents(legacy_user_agents)
-            
+
             # Merge legacy data
-            categories['total'] += legacy_categories['total']
-            categories['bots'] += legacy_categories['bots']
-            
-            for browser, count in legacy_categories['browsers'].items():
-                if browser not in categories['browsers']:
-                    categories['browsers'][browser] = 0
-                categories['browsers'][browser] += count
-                
-            for os, count in legacy_categories['operating_systems'].items():
-                if os not in categories['operating_systems']:
-                    categories['operating_systems'][os] = 0
-                categories['operating_systems'][os] += count
-                
-            for device, count in legacy_categories['device_types'].items():
-                if device not in categories['device_types']:
-                    categories['device_types'][device] = 0
-                categories['device_types'][device] += count
-        
+            categories["total"] += legacy_categories["total"]
+            categories["bots"] += legacy_categories["bots"]
+
+            for browser, count in legacy_categories["browsers"].items():
+                if browser not in categories["browsers"]:
+                    categories["browsers"][browser] = 0
+                categories["browsers"][browser] += count
+
+            for os, count in legacy_categories["operating_systems"].items():
+                if os not in categories["operating_systems"]:
+                    categories["operating_systems"][os] = 0
+                categories["operating_systems"][os] += count
+
+            for device, count in legacy_categories["device_types"].items():
+                if device not in categories["device_types"]:
+                    categories["device_types"][device] = 0
+                categories["device_types"][device] += count
+
         # Create HTML for the statistics
         style = """
         <style>
@@ -443,15 +514,23 @@ class AccessLogAdmin(ReadOnlyAdmin):
             .ua-category h3 { margin-top: 10px; color: #555; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
         </style>
         """
-        
-        html = [style, '<div class="ua-summary"><h2>User Agent Statistics Summary</h2><div class="ua-chart">']
-        
+
+        html = [
+            style,
+            '<div class="ua-summary"><h2>User Agent Statistics Summary</h2><div class="ua-chart">',
+        ]
+
         # Browser statistics column
-        html.append('<div class="ua-column"><div class="ua-category"><h3>Top Browsers</h3>')
-        sorted_browsers = sorted(categories['browsers'].items(), key=lambda x: x[1], reverse=True)[:10]
+        html.append(
+            '<div class="ua-column"><div class="ua-category"><h3>Top Browsers</h3>'
+        )
+        sorted_browsers = sorted(
+            categories["browsers"].items(), key=lambda x: x[1], reverse=True
+        )[:10]
         for browser, count in sorted_browsers:
-            percentage = (count / categories['total']) * 100
-            html.append(f'''
+            percentage = (count / categories["total"]) * 100
+            html.append(
+                f"""
                 <div class="ua-bar-container">
                     <div class="ua-bar" style="width: {percentage}%;"></div>
                     <div class="ua-bar-label">
@@ -459,15 +538,21 @@ class AccessLogAdmin(ReadOnlyAdmin):
                         <div class="ua-bar-value">{percentage:.1f}%</div>
                     </div>
                 </div>
-            ''')
-        html.append('</div></div>')
-        
+            """
+            )
+        html.append("</div></div>")
+
         # OS statistics column
-        html.append('<div class="ua-column"><div class="ua-category"><h3>Top Operating Systems</h3>')
-        sorted_os = sorted(categories['operating_systems'].items(), key=lambda x: x[1], reverse=True)[:10]
+        html.append(
+            '<div class="ua-column"><div class="ua-category"><h3>Top Operating Systems</h3>'
+        )
+        sorted_os = sorted(
+            categories["operating_systems"].items(), key=lambda x: x[1], reverse=True
+        )[:10]
         for os, count in sorted_os:
-            percentage = (count / categories['total']) * 100
-            html.append(f'''
+            percentage = (count / categories["total"]) * 100
+            html.append(
+                f"""
                 <div class="ua-bar-container">
                     <div class="ua-bar" style="width: {percentage}%;"></div>
                     <div class="ua-bar-label">
@@ -475,15 +560,21 @@ class AccessLogAdmin(ReadOnlyAdmin):
                         <div class="ua-bar-value">{percentage:.1f}%</div>
                     </div>
                 </div>
-            ''')
-        html.append('</div></div>')
-        
+            """
+            )
+        html.append("</div></div>")
+
         # Device type statistics column
-        html.append('<div class="ua-column"><div class="ua-category"><h3>Device Types</h3>')
-        sorted_devices = sorted(categories['device_types'].items(), key=lambda x: x[1], reverse=True)
+        html.append(
+            '<div class="ua-column"><div class="ua-category"><h3>Device Types</h3>'
+        )
+        sorted_devices = sorted(
+            categories["device_types"].items(), key=lambda x: x[1], reverse=True
+        )
         for device, count in sorted_devices:
-            percentage = (count / categories['total']) * 100
-            html.append(f'''
+            percentage = (count / categories["total"]) * 100
+            html.append(
+                f"""
                 <div class="ua-bar-container">
                     <div class="ua-bar" style="width: {percentage}%;"></div>
                     <div class="ua-bar-label">
@@ -491,420 +582,447 @@ class AccessLogAdmin(ReadOnlyAdmin):
                         <div class="ua-bar-value">{percentage:.1f}%</div>
                     </div>
                 </div>
-            ''')
-        html.append('</div></div>')
-        
-        html.append('</div>')  # Close chart
-        
+            """
+            )
+        html.append("</div></div>")
+
+        html.append("</div>")  # Close chart
+
         # Summary stats
-        bot_percentage = (categories['bots'] / categories['total']) * 100 if categories['bots'] > 0 else 0
+        bot_percentage = (
+            (categories["bots"] / categories["total"]) * 100
+            if categories["bots"] > 0
+            else 0
+        )
         top_browser = sorted_browsers[0][0] if sorted_browsers else "Unknown"
-        top_browser_pct = sorted_browsers[0][1] / categories['total'] * 100 if sorted_browsers else 0
+        top_browser_pct = (
+            sorted_browsers[0][1] / categories["total"] * 100 if sorted_browsers else 0
+        )
         top_os = sorted_os[0][0] if sorted_os else "Unknown"
-        top_os_pct = sorted_os[0][1] / categories['total'] * 100 if sorted_os else 0
-        
-        html.append(f'''
+        top_os_pct = sorted_os[0][1] / categories["total"] * 100 if sorted_os else 0
+
+        html.append(
+            f"""
             <div style="margin-top: 15px; font-size: 13px;">
                 <p>Based on {categories['total']} requests • 
                 Bot/Crawler traffic: {bot_percentage:.1f}% • 
                 Top browser: {top_browser} ({top_browser_pct:.1f}%) • 
                 Top OS: {top_os} ({top_os_pct:.1f}%)</p>
             </div>
-        ''')
-        
-        html.append('</div>')  # Close summary
-        
-        return mark_safe(''.join(html))
+        """
+        )
+
+        html.append("</div>")  # Close summary
+
+        return mark_safe("".join(html))
 
 
 class LogPathAdmin(ReadOnlyAdmin):
     """Admin class for LogPath model."""
-    list_display = ('path',)
-    search_fields = ('path',)
-    readonly_fields = ('path',)
+
+    list_display = ("path",)
+    search_fields = ("path",)
+    readonly_fields = ("path",)
 
 
 class LogSessionKeyAdmin(ReadOnlyAdmin):
     """Admin class for LogSessionKey model."""
-    list_display = ('key',)
-    search_fields = ('key',)
-    readonly_fields = ('key',)
+
+    list_display = ("key",)
+    search_fields = ("key",)
+    readonly_fields = ("key",)
 
 
 class ActivityLevelFilter(SimpleListFilter):
     """Filter users by their activity level in a time period."""
-    title = 'Activity Level'
-    parameter_name = 'activity'
+
+    title = "Activity Level"
+    parameter_name = "activity"
 
     def lookups(self, request, model_admin):
         return (
-            ('high', 'High (10+ requests)'),
-            ('medium', 'Medium (3-9 requests)'),
-            ('low', 'Low (1-2 requests)'),
-            ('inactive', 'Inactive (no requests)'),
-            ('recent', 'Active in last 7 days'),
+            ("high", "High (10+ requests)"),
+            ("medium", "Medium (3-9 requests)"),
+            ("low", "Low (1-2 requests)"),
+            ("inactive", "Inactive (no requests)"),
+            ("recent", "Active in last 7 days"),
         )
 
     def queryset(self, request, queryset):
         if not self.value():
             return queryset
-            
-        if self.value() == 'high':
-            return queryset.annotate(
-                count=models.Count('accesslog')
-            ).filter(count__gte=10)
-            
-        if self.value() == 'medium':
-            return queryset.annotate(
-                count=models.Count('accesslog')
-            ).filter(count__gte=3, count__lte=9)
-            
-        if self.value() == 'low':
-            return queryset.annotate(
-                count=models.Count('accesslog')
-            ).filter(count__gte=1, count__lte=2)
-            
-        if self.value() == 'inactive':
-            return queryset.annotate(
-                count=models.Count('accesslog')
-            ).filter(count=0)
-            
-        if self.value() == 'recent':
+
+        if self.value() == "high":
+            return queryset.annotate(count=models.Count("accesslog")).filter(
+                count__gte=10
+            )
+
+        if self.value() == "medium":
+            return queryset.annotate(count=models.Count("accesslog")).filter(
+                count__gte=3, count__lte=9
+            )
+
+        if self.value() == "low":
+            return queryset.annotate(count=models.Count("accesslog")).filter(
+                count__gte=1, count__lte=2
+            )
+
+        if self.value() == "inactive":
+            return queryset.annotate(count=models.Count("accesslog")).filter(count=0)
+
+        if self.value() == "recent":
             seven_days_ago = timezone.now() - timedelta(days=7)
-            return queryset.filter(
-                accesslog__timestamp__gte=seven_days_ago
-            ).distinct()
+            return queryset.filter(accesslog__timestamp__gte=seven_days_ago).distinct()
 
 
 class MultipleIPFilter(SimpleListFilter):
     """Filter users who have used multiple IP addresses."""
-    title = 'IP Usage'
-    parameter_name = 'ip_usage'
+
+    title = "IP Usage"
+    parameter_name = "ip_usage"
 
     def lookups(self, request, model_admin):
         return (
-            ('multiple', 'Multiple IPs'),
-            ('single', 'Single IP'),
+            ("multiple", "Multiple IPs"),
+            ("single", "Single IP"),
         )
 
     def queryset(self, request, queryset):
         if not self.value():
             return queryset
-            
-        if self.value() == 'multiple':
+
+        if self.value() == "multiple":
             return queryset.annotate(
-                ip_count=models.Count('accesslog__ip', distinct=True)
+                ip_count=models.Count("accesslog__ip", distinct=True)
             ).filter(ip_count__gt=1)
-            
-        if self.value() == 'single':
+
+        if self.value() == "single":
             return queryset.annotate(
-                ip_count=models.Count('accesslog__ip', distinct=True)
+                ip_count=models.Count("accesslog__ip", distinct=True)
             ).filter(ip_count=1)
 
 
 class UserAgentUtil:
     """Utility class for parsing and normalizing user agents."""
-    
+
     # Browser pattern regex
     BROWSER_PATTERNS = [
-        (r'Chrome/(\d+)', 'Chrome'),
-        (r'Firefox/(\d+)', 'Firefox'),
-        (r'Safari/(\d+)', 'Safari'),
-        (r'Edge/(\d+)', 'Edge'),
-        (r'Edg/(\d+)', 'Edge'),  # New Edge based on Chromium
-        (r'MSIE\s(\d+)', 'Internet Explorer'),
-        (r'Trident/.*rv:(\d+)', 'Internet Explorer'),
-        (r'OPR/(\d+)', 'Opera'),
-        (r'Opera/(\d+)', 'Opera'),
-        (r'UCBrowser/(\d+)', 'UC Browser'),
-        (r'SamsungBrowser/(\d+)', 'Samsung Browser'),
-        (r'YaBrowser/(\d+)', 'Yandex Browser'),
-        (r'HeadlessChrome', 'Headless Chrome'),
-        (r'Googlebot', 'Googlebot'),
-        (r'bingbot', 'Bingbot'),
-        (r'DuckDuckBot', 'DuckDuckBot'),
+        (r"Chrome/(\d+)", "Chrome"),
+        (r"Firefox/(\d+)", "Firefox"),
+        (r"Safari/(\d+)", "Safari"),
+        (r"Edge/(\d+)", "Edge"),
+        (r"Edg/(\d+)", "Edge"),  # New Edge based on Chromium
+        (r"MSIE\s(\d+)", "Internet Explorer"),
+        (r"Trident/.*rv:(\d+)", "Internet Explorer"),
+        (r"OPR/(\d+)", "Opera"),
+        (r"Opera/(\d+)", "Opera"),
+        (r"UCBrowser/(\d+)", "UC Browser"),
+        (r"SamsungBrowser/(\d+)", "Samsung Browser"),
+        (r"YaBrowser/(\d+)", "Yandex Browser"),
+        (r"HeadlessChrome", "Headless Chrome"),
+        (r"Googlebot", "Googlebot"),
+        (r"bingbot", "Bingbot"),
+        (r"DuckDuckBot", "DuckDuckBot"),
     ]
-    
+
     # OS pattern regex
     OS_PATTERNS = [
-        (r'Windows NT 10\.0', 'Windows 10'),
-        (r'Windows NT 6\.3', 'Windows 8.1'),
-        (r'Windows NT 6\.2', 'Windows 8'),
-        (r'Windows NT 6\.1', 'Windows 7'),
-        (r'Windows NT 6\.0', 'Windows Vista'),
-        (r'Windows NT 5\.1', 'Windows XP'),
-        (r'Windows NT 5\.0', 'Windows 2000'),
-        (r'Macintosh.*Mac OS X', 'macOS'),
-        (r'Android\s+(\d+)', 'Android'),
-        (r'Linux', 'Linux'),
-        (r'iPhone.*OS\s+(\d+)', 'iOS'),
-        (r'iPad.*OS\s+(\d+)', 'iOS'),
-        (r'iPod.*OS\s+(\d+)', 'iOS'),
-        (r'CrOS', 'Chrome OS'),
+        (r"Windows NT 10\.0", "Windows 10"),
+        (r"Windows NT 6\.3", "Windows 8.1"),
+        (r"Windows NT 6\.2", "Windows 8"),
+        (r"Windows NT 6\.1", "Windows 7"),
+        (r"Windows NT 6\.0", "Windows Vista"),
+        (r"Windows NT 5\.1", "Windows XP"),
+        (r"Windows NT 5\.0", "Windows 2000"),
+        (r"Macintosh.*Mac OS X", "macOS"),
+        (r"Android\s+(\d+)", "Android"),
+        (r"Linux", "Linux"),
+        (r"iPhone.*OS\s+(\d+)", "iOS"),
+        (r"iPad.*OS\s+(\d+)", "iOS"),
+        (r"iPod.*OS\s+(\d+)", "iOS"),
+        (r"CrOS", "Chrome OS"),
     ]
-    
+
     # Device type patterns
     DEVICE_PATTERNS = [
-        (r'iPhone', 'Mobile'),
-        (r'iPod', 'Mobile'),
-        (r'iPad', 'Tablet'),
-        (r'Android.*Mobile', 'Mobile'),
-        (r'Android(?!.*Mobile)', 'Tablet'),
-        (r'Mobile', 'Mobile'),
-        (r'Tablet', 'Tablet'),
+        (r"iPhone", "Mobile"),
+        (r"iPod", "Mobile"),
+        (r"iPad", "Tablet"),
+        (r"Android.*Mobile", "Mobile"),
+        (r"Android(?!.*Mobile)", "Tablet"),
+        (r"Mobile", "Mobile"),
+        (r"Tablet", "Tablet"),
     ]
-    
+
     # Bot/crawler patterns
     BOT_PATTERNS = [
-        (r'bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu', 'Bot/Crawler'),
+        (
+            r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu",
+            "Bot/Crawler",
+        ),
     ]
-    
+
     @classmethod
     def normalize_user_agent(cls, user_agent):
         """
         Normalize a user agent string to categorize browsers, OS, and device types.
-        
+
         Args:
             user_agent: The raw user agent string
-            
+
         Returns:
             dict: Containing browser, browser_version, os, device_type, is_bot
         """
         if not user_agent:
             return {
-                'browser': 'Unknown',
-                'browser_version': None,
-                'os': 'Unknown',
-                'device_type': 'Unknown',
-                'is_bot': False,
-                'raw': user_agent
+                "browser": "Unknown",
+                "browser_version": None,
+                "os": "Unknown",
+                "device_type": "Unknown",
+                "is_bot": False,
+                "raw": user_agent,
             }
-            
+
         result = {
-            'browser': 'Unknown',
-            'browser_version': None,
-            'os': 'Unknown',
-            'device_type': 'Desktop',  # Default to desktop
-            'is_bot': False,
-            'raw': user_agent
+            "browser": "Unknown",
+            "browser_version": None,
+            "os": "Unknown",
+            "device_type": "Desktop",  # Default to desktop
+            "is_bot": False,
+            "raw": user_agent,
         }
-        
+
         # Check if it's a bot
         for pattern, _ in cls.BOT_PATTERNS:
             if re.search(pattern, user_agent, re.IGNORECASE):
-                result['is_bot'] = True
-                result['browser'] = 'Bot/Crawler'
-                result['device_type'] = 'Bot'
+                result["is_bot"] = True
+                result["browser"] = "Bot/Crawler"
+                result["device_type"] = "Bot"
                 break
-                
+
         # Detect browser and version
         for pattern, browser in cls.BROWSER_PATTERNS:
             match = re.search(pattern, user_agent)
             if match:
-                result['browser'] = browser
+                result["browser"] = browser
                 # Get version if available
                 if len(match.groups()) > 0 and match.group(1).isdigit():
-                    result['browser_version'] = match.group(1)
+                    result["browser_version"] = match.group(1)
                 break
-                
+
         # Detect OS
         for pattern, os in cls.OS_PATTERNS:
             if re.search(pattern, user_agent):
-                result['os'] = os
+                result["os"] = os
                 break
-                
+
         # Detect device type (only if not already a bot)
-        if not result['is_bot']:
+        if not result["is_bot"]:
             for pattern, device in cls.DEVICE_PATTERNS:
                 if re.search(pattern, user_agent, re.IGNORECASE):
-                    result['device_type'] = device
+                    result["device_type"] = device
                     break
-                    
+
         return result
-    
+
     @classmethod
     def categorize_user_agents(cls, user_agents):
         """
         Group a list of user agent strings into categories.
-        
+
         Args:
             user_agents: List of (user_agent, count) tuples
-            
+
         Returns:
             dict: Categorized counts by browser, os, and device type
         """
         categories = {
-            'browsers': {},
-            'operating_systems': {},
-            'device_types': {},
-            'bots': 0,
-            'total': 0
+            "browsers": {},
+            "operating_systems": {},
+            "device_types": {},
+            "bots": 0,
+            "total": 0,
         }
-        
+
         for agent, count in user_agents:
-            categories['total'] += count
+            categories["total"] += count
             info = cls.normalize_user_agent(agent)
-            
+
             # Add to browser counts
-            browser = info['browser']
-            if browser not in categories['browsers']:
-                categories['browsers'][browser] = 0
-            categories['browsers'][browser] += count
-            
+            browser = info["browser"]
+            if browser not in categories["browsers"]:
+                categories["browsers"][browser] = 0
+            categories["browsers"][browser] += count
+
             # Add to OS counts
-            os = info['os']
-            if os not in categories['operating_systems']:
-                categories['operating_systems'][os] = 0
-            categories['operating_systems'][os] += count
-            
+            os = info["os"]
+            if os not in categories["operating_systems"]:
+                categories["operating_systems"][os] = 0
+            categories["operating_systems"][os] += count
+
             # Add to device type counts
-            device = info['device_type']
-            if device not in categories['device_types']:
-                categories['device_types'][device] = 0
-            categories['device_types'][device] += count
-            
+            device = info["device_type"]
+            if device not in categories["device_types"]:
+                categories["device_types"][device] = 0
+            categories["device_types"][device] += count
+
             # Count bots
-            if info['is_bot']:
-                categories['bots'] += count
-                
+            if info["is_bot"]:
+                categories["bots"] += count
+
         return categories
 
 
 class LogUserAdmin(ReadOnlyAdmin):
     """Admin class for LogUser model."""
-    list_display = ('id', 'user_name', 'ip_addresses_count', 'access_count', 'last_active')
-    search_fields = ('user_name',)
-    readonly_fields = ('id', 'user_name', 'ip_addresses_used', 'url_access_stats', 'recent_activity', 'user_agent_stats')
-    
+
+    list_display = (
+        "id",
+        "user_name",
+        "ip_addresses_count",
+        "access_count",
+        "last_active",
+    )
+    search_fields = ("user_name",)
+    readonly_fields = (
+        "id",
+        "user_name",
+        "ip_addresses_used",
+        "url_access_stats",
+        "recent_activity",
+        "user_agent_stats",
+    )
+
     # Set up the list_filter with conditional DateRangeFilter if available
     if HAS_RANGE_FILTER:
         list_filter = (
-            ActivityLevelFilter, 
+            ActivityLevelFilter,
             MultipleIPFilter,
-            ('accesslog__timestamp', DateRangeFilter)
+            ("accesslog__timestamp", DateRangeFilter),
         )
     else:
         list_filter = (ActivityLevelFilter, MultipleIPFilter)
-    
+
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         qs = qs.annotate(
-            access_count=models.Count('accesslog'),
-            ip_count=models.Count('accesslog__ip', distinct=True),
-            last_activity=models.Max('accesslog__timestamp')
+            access_count=models.Count("accesslog"),
+            ip_count=models.Count("accesslog__ip", distinct=True),
+            last_activity=models.Max("accesslog__timestamp"),
         )
         return qs
-    
+
     def access_count(self, obj):
         return obj.access_count
-    access_count.admin_order_field = 'access_count'
-    access_count.short_description = 'Total Accesses'
-    
+
+    access_count.admin_order_field = "access_count"
+    access_count.short_description = "Total Accesses"
+
     def ip_addresses_count(self, obj):
         return obj.ip_count
-    ip_addresses_count.admin_order_field = 'ip_count'
-    ip_addresses_count.short_description = 'Unique IPs'
-    
+
+    ip_addresses_count.admin_order_field = "ip_count"
+    ip_addresses_count.short_description = "Unique IPs"
+
     def last_active(self, obj):
         """Return the last activity time for this user."""
-        if hasattr(obj, 'last_activity') and obj.last_activity:
+        if hasattr(obj, "last_activity") and obj.last_activity:
             return obj.last_activity
         return "Never"
-    last_active.admin_order_field = 'last_activity'
-    last_active.short_description = 'Last Active'
-    
+
+    last_active.admin_order_field = "last_activity"
+    last_active.short_description = "Last Active"
+
     def user_agent_stats(self, obj):
         """Show user agent statistics for this user with charts."""
         from django.db.models import Count
-        
+
         # Get user agent data with counts using the normalized model
-        user_agents = AccessLog.objects.filter(
-            user=obj,
-            user_agent_normalized__isnull=False
-        ).values(
-            'user_agent_normalized__browser',
-            'user_agent_normalized__operating_system',
-            'user_agent_normalized__device_type',
-            'user_agent_normalized__is_bot'
-        ).annotate(
-            count=Count('id')
-        ).order_by('-count')
-        
+        user_agents = (
+            AccessLog.objects.filter(user=obj, user_agent_normalized__isnull=False)
+            .values(
+                "user_agent_normalized__browser",
+                "user_agent_normalized__operating_system",
+                "user_agent_normalized__device_type",
+                "user_agent_normalized__is_bot",
+            )
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+
         # Also get older data from the text field for backward compatibility
-        legacy_user_agents = AccessLog.objects.filter(
-            user=obj,
-            user_agent_normalized__isnull=True,
-            user_agent__isnull=False
-        ).exclude(
-            user_agent=''
-        ).values_list(
-            'user_agent'
-        ).annotate(
-            count=Count('user_agent')
-        ).order_by('-count')
-        
+        legacy_user_agents = (
+            AccessLog.objects.filter(
+                user=obj, user_agent_normalized__isnull=True, user_agent__isnull=False
+            )
+            .exclude(user_agent="")
+            .values_list("user_agent")
+            .annotate(count=Count("user_agent"))
+            .order_by("-count")
+        )
+
         if not user_agents and not legacy_user_agents:
             return "No user agent data available"
-        
+
         # Initialize categories
         categories = {
-            'browsers': {},
-            'operating_systems': {},
-            'device_types': {},
-            'bots': 0,
-            'total': 0
+            "browsers": {},
+            "operating_systems": {},
+            "device_types": {},
+            "bots": 0,
+            "total": 0,
         }
-        
+
         # Process normalized user agents (more efficient)
         for agent in user_agents:
-            count = agent['count']
-            categories['total'] += count
-            
+            count = agent["count"]
+            categories["total"] += count
+
             # Add to browser counts
-            browser = agent['user_agent_normalized__browser'] or 'Unknown'
-            if browser not in categories['browsers']:
-                categories['browsers'][browser] = 0
-            categories['browsers'][browser] += count
-            
+            browser = agent["user_agent_normalized__browser"] or "Unknown"
+            if browser not in categories["browsers"]:
+                categories["browsers"][browser] = 0
+            categories["browsers"][browser] += count
+
             # Add to OS counts
-            os = agent['user_agent_normalized__operating_system'] or 'Unknown'
-            if os not in categories['operating_systems']:
-                categories['operating_systems'][os] = 0
-            categories['operating_systems'][os] += count
-            
+            os = agent["user_agent_normalized__operating_system"] or "Unknown"
+            if os not in categories["operating_systems"]:
+                categories["operating_systems"][os] = 0
+            categories["operating_systems"][os] += count
+
             # Add to device type counts
-            device = agent['user_agent_normalized__device_type'] or 'Unknown'
-            if device not in categories['device_types']:
-                categories['device_types'][device] = 0
-            categories['device_types'][device] += count
-            
+            device = agent["user_agent_normalized__device_type"] or "Unknown"
+            if device not in categories["device_types"]:
+                categories["device_types"][device] = 0
+            categories["device_types"][device] += count
+
             # Count bots
-            if agent['user_agent_normalized__is_bot']:
-                categories['bots'] += count
-        
+            if agent["user_agent_normalized__is_bot"]:
+                categories["bots"] += count
+
         # Process legacy user agents
         if legacy_user_agents:
             legacy_categories = UserAgentUtil.categorize_user_agents(legacy_user_agents)
-            
+
             # Merge legacy data
-            categories['total'] += legacy_categories['total']
-            categories['bots'] += legacy_categories['bots']
-            
-            for browser, count in legacy_categories['browsers'].items():
-                if browser not in categories['browsers']:
-                    categories['browsers'][browser] = 0
-                categories['browsers'][browser] += count
-                
-            for os, count in legacy_categories['operating_systems'].items():
-                if os not in categories['operating_systems']:
-                    categories['operating_systems'][os] = 0
-                categories['operating_systems'][os] += count
-                
-            for device, count in legacy_categories['device_types'].items():
-                if device not in categories['device_types']:
-                    categories['device_types'][device] = 0
-                categories['device_types'][device] += count
-        
+            categories["total"] += legacy_categories["total"]
+            categories["bots"] += legacy_categories["bots"]
+
+            for browser, count in legacy_categories["browsers"].items():
+                if browser not in categories["browsers"]:
+                    categories["browsers"][browser] = 0
+                categories["browsers"][browser] += count
+
+            for os, count in legacy_categories["operating_systems"].items():
+                if os not in categories["operating_systems"]:
+                    categories["operating_systems"][os] = 0
+                categories["operating_systems"][os] += count
+
+            for device, count in legacy_categories["device_types"].items():
+                if device not in categories["device_types"]:
+                    categories["device_types"][device] = 0
+                categories["device_types"][device] += count
+
         # Create HTML for the statistics
         style = """
         <style>
@@ -919,68 +1037,83 @@ class LogUserAdmin(ReadOnlyAdmin):
             .ua-bot-note { margin-top: 15px; font-style: italic; color: #666; }
         </style>
         """
-        
+
         html = [style, '<div class="ua-stats">']
-        
+
         # Browser statistics
         html.append('<div class="ua-category"><h3>Browsers</h3>')
-        sorted_browsers = sorted(categories['browsers'].items(), key=lambda x: x[1], reverse=True)
+        sorted_browsers = sorted(
+            categories["browsers"].items(), key=lambda x: x[1], reverse=True
+        )
         for browser, count in sorted_browsers:
-            percentage = (count / categories['total']) * 100
-            html.append(f'''
+            percentage = (count / categories["total"]) * 100
+            html.append(
+                f"""
                 <div class="ua-bar-container">
                     <div class="ua-bar-label">{browser}</div>
                     <div class="ua-bar" style="width: {max(percentage, 2)}%;"></div>
                     <div class="ua-bar-value">{count} ({percentage:.1f}%)</div>
                 </div>
-            ''')
-        html.append('</div>')
-        
+            """
+            )
+        html.append("</div>")
+
         # OS statistics
         html.append('<div class="ua-category"><h3>Operating Systems</h3>')
-        sorted_os = sorted(categories['operating_systems'].items(), key=lambda x: x[1], reverse=True)
+        sorted_os = sorted(
+            categories["operating_systems"].items(), key=lambda x: x[1], reverse=True
+        )
         for os, count in sorted_os:
-            percentage = (count / categories['total']) * 100
-            html.append(f'''
+            percentage = (count / categories["total"]) * 100
+            html.append(
+                f"""
                 <div class="ua-bar-container">
                     <div class="ua-bar-label">{os}</div>
                     <div class="ua-bar" style="width: {max(percentage, 2)}%;"></div>
                     <div class="ua-bar-value">{count} ({percentage:.1f}%)</div>
                 </div>
-            ''')
-        html.append('</div>')
-        
+            """
+            )
+        html.append("</div>")
+
         # Device type statistics
         html.append('<div class="ua-category"><h3>Device Types</h3>')
-        sorted_devices = sorted(categories['device_types'].items(), key=lambda x: x[1], reverse=True)
+        sorted_devices = sorted(
+            categories["device_types"].items(), key=lambda x: x[1], reverse=True
+        )
         for device, count in sorted_devices:
-            percentage = (count / categories['total']) * 100
-            html.append(f'''
+            percentage = (count / categories["total"]) * 100
+            html.append(
+                f"""
                 <div class="ua-bar-container">
                     <div class="ua-bar-label">{device}</div>
                     <div class="ua-bar" style="width: {max(percentage, 2)}%;"></div>
                     <div class="ua-bar-value">{count} ({percentage:.1f}%)</div>
                 </div>
-            ''')
-        html.append('</div>')
-        
+            """
+            )
+        html.append("</div>")
+
         # Bot percentage
-        if categories['bots'] > 0:
-            bot_percentage = (categories['bots'] / categories['total']) * 100
-            html.append(f'<div class="ua-bot-note">Bot/Crawler traffic: {categories["bots"]} requests ({bot_percentage:.1f}%)</div>')
-        
-        html.append('</div>')
-        
-        return mark_safe(''.join(html))
-    user_agent_stats.short_description = 'User Agent Statistics'
-    
+        if categories["bots"] > 0:
+            bot_percentage = (categories["bots"] / categories["total"]) * 100
+            html.append(
+                f'<div class="ua-bot-note">Bot/Crawler traffic: {categories["bots"]} requests ({bot_percentage:.1f}%)</div>'
+            )
+
+        html.append("</div>")
+
+        return mark_safe("".join(html))
+
+    user_agent_stats.short_description = "User Agent Statistics"
+
     def recent_activity(self, obj):
         """Show the most recent activity for this user."""
-        recent_logs = AccessLog.objects.filter(user=obj).order_by('-timestamp')[:10]
-        
+        recent_logs = AccessLog.objects.filter(user=obj).order_by("-timestamp")[:10]
+
         if not recent_logs:
             return "No recent activity"
-            
+
         style = """
         <style>
             .activity-list { margin: 10px 0; }
@@ -996,46 +1129,54 @@ class LogUserAdmin(ReadOnlyAdmin):
             .activity-list .status-error { color: #dc3545; }
         </style>
         """
-        
+
         html = [style, '<div class="activity-list">']
         for log in recent_logs:
             # Determine status class
-            status_class = ''
+            status_class = ""
             if log.status_code:
                 if 200 <= log.status_code < 300:
-                    status_class = 'status-success'
+                    status_class = "status-success"
                 elif 300 <= log.status_code < 400:
-                    status_class = 'status-redirect'
+                    status_class = "status-redirect"
                 elif log.status_code >= 400:
-                    status_class = 'status-error'
-                    
+                    status_class = "status-error"
+
             # Format the log entry
-            status_html = f'<span class="status {status_class}">[{log.status_code}]</span>' if log.status_code else ""
+            status_html = (
+                f'<span class="status {status_class}">[{log.status_code}]</span>'
+                if log.status_code
+                else ""
+            )
             html.append(
-                f'<div>'
+                f"<div>"
                 f'<span class="timestamp">{log.timestamp.strftime("%Y-%m-%d %H:%M:%S")}</span> '
                 f'<span class="method method-{log.method}">{log.method}</span> '
                 f'<span class="path">{log.path}</span> '
-                f'{status_html}'
-                f'</div>'
+                f"{status_html}"
+                f"</div>"
             )
-        html.append('</div>')
-        
-        return mark_safe(''.join(html))
-    recent_activity.short_description = 'Recent Activity (Last 10 Actions)'
-    
+        html.append("</div>")
+
+        return mark_safe("".join(html))
+
+    recent_activity.short_description = "Recent Activity (Last 10 Actions)"
+
     def ip_addresses_used(self, obj):
         """Return HTML list of IP addresses used by this user with request counts."""
         from django.db.models import Count
-        
+
         # More efficient query with annotation
-        ip_stats = AccessLog.objects.filter(user=obj).values('ip__address').annotate(
-            count=Count('ip')
-        ).order_by('-count')
-        
+        ip_stats = (
+            AccessLog.objects.filter(user=obj)
+            .values("ip__address")
+            .annotate(count=Count("ip"))
+            .order_by("-count")
+        )
+
         if not ip_stats:
             return "No IP addresses recorded"
-        
+
         style = """
         <style>
             .ip-list { margin: 10px 0; padding: 0; list-style-type: none; }
@@ -1043,29 +1184,33 @@ class LogUserAdmin(ReadOnlyAdmin):
             .ip-count { font-weight: bold; color: #0066cc; }
         </style>
         """
-        
+
         html = [style, '<ul class="ip-list">']
         for item in ip_stats:
             html.append(
                 f'<li>{item["ip__address"]} - <span class="ip-count">{item["count"]} requests</span></li>'
             )
-        html.append('</ul>')
-        
-        return mark_safe(''.join(html))
-    ip_addresses_used.short_description = 'IP Addresses Used'
-    
+        html.append("</ul>")
+
+        return mark_safe("".join(html))
+
+    ip_addresses_used.short_description = "IP Addresses Used"
+
     def url_access_stats(self, obj):
         """Return HTML table of URLs accessed by this user with counts."""
         from django.db.models import Count
-        
+
         # More efficient query with annotation
-        url_stats = AccessLog.objects.filter(user=obj).values('path__path').annotate(
-            count=Count('path')
-        ).order_by('-count')[:50]  # Limit to top 50 to avoid performance issues
-        
+        url_stats = (
+            AccessLog.objects.filter(user=obj)
+            .values("path__path")
+            .annotate(count=Count("path"))
+            .order_by("-count")[:50]
+        )  # Limit to top 50 to avoid performance issues
+
         if not url_stats:
             return "No URLs recorded"
-        
+
         style = """
         <style>
             .url-table { border-collapse: collapse; width: 100%; margin-top: 10px; }
@@ -1076,68 +1221,71 @@ class LogUserAdmin(ReadOnlyAdmin):
             .url-count { text-align: center; font-weight: bold; }
         </style>
         """
-        
+
         html = [style, '<table class="url-table"><tr><th>URL</th><th>Count</th></tr>']
         for item in url_stats:
             html.append(
                 f'<tr><td>{item["path__path"]}</td><td class="url-count">{item["count"]}</td></tr>'
             )
-        
+
         if len(url_stats) == 50:
-            html.append('<tr><td colspan="2" style="text-align:center; font-style:italic;">Showing top 50 results</td></tr>')
-            
-        html.append('</table>')
-        
-        return mark_safe(''.join(html))
-    url_access_stats.short_description = 'URL Access Statistics'
+            html.append(
+                '<tr><td colspan="2" style="text-align:center; font-style:italic;">Showing top 50 results</td></tr>'
+            )
+
+        html.append("</table>")
+
+        return mark_safe("".join(html))
+
+    url_access_stats.short_description = "URL Access Statistics"
 
 
 class LogIpAddressAdmin(ReadOnlyAdmin):
     """Admin class for LogIpAddress model."""
-    list_display = ('address', 'user_count', 'request_count')
-    search_fields = ('address',)
-    readonly_fields = ('address', 'user_agent_stats')
-    
+
+    list_display = ("address", "user_count", "request_count")
+    search_fields = ("address",)
+    readonly_fields = ("address", "user_agent_stats")
+
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         qs = qs.annotate(
-            request_count=models.Count('accesslog'),
-            user_count=models.Count('accesslog__user', distinct=True)
+            request_count=models.Count("accesslog"),
+            user_count=models.Count("accesslog__user", distinct=True),
         )
         return qs
-    
+
     def user_count(self, obj):
         return obj.user_count
-    user_count.admin_order_field = 'user_count'
-    user_count.short_description = 'Unique Users'
-    
+
+    user_count.admin_order_field = "user_count"
+    user_count.short_description = "Unique Users"
+
     def request_count(self, obj):
         return obj.request_count
-    request_count.admin_order_field = 'request_count'
-    request_count.short_description = 'Total Requests'
-    
+
+    request_count.admin_order_field = "request_count"
+    request_count.short_description = "Total Requests"
+
     def user_agent_stats(self, obj):
         """Show user agent statistics for this IP address."""
         from django.db.models import Count
-        
+
         # Get user agent data with counts
-        user_agents = AccessLog.objects.filter(
-            ip=obj, 
-            user_agent__isnull=False
-        ).exclude(
-            user_agent=''
-        ).values_list(
-            'user_agent'
-        ).annotate(
-            count=Count('user_agent')
-        ).order_by('-count')
-        
+        user_agents = (
+            AccessLog.objects.filter(ip=obj, user_agent__isnull=False)
+            .exclude(user_agent="")
+            .values_list("user_agent")
+            .annotate(count=Count("user_agent"))
+            .order_by("-count")
+        )
+
         if not user_agents:
             return "No user agent data available"
-        
+
         # Get categorized data
         categories = UserAgentUtil.categorize_user_agents(user_agents)
-        
+
         # Create HTML for the statistics
         style = """
         <style>
@@ -1152,100 +1300,139 @@ class LogIpAddressAdmin(ReadOnlyAdmin):
             .ua-bot-note { margin-top: 15px; font-style: italic; color: #666; }
         </style>
         """
-        
+
         html = [style, '<div class="ua-stats">']
-        
+
         # Browser statistics
         html.append('<div class="ua-category"><h3>Browsers</h3>')
-        sorted_browsers = sorted(categories['browsers'].items(), key=lambda x: x[1], reverse=True)
+        sorted_browsers = sorted(
+            categories["browsers"].items(), key=lambda x: x[1], reverse=True
+        )
         for browser, count in sorted_browsers:
-            percentage = (count / categories['total']) * 100
-            html.append(f'''
+            percentage = (count / categories["total"]) * 100
+            html.append(
+                f"""
                 <div class="ua-bar-container">
                     <div class="ua-bar-label">{browser}</div>
                     <div class="ua-bar" style="width: {max(percentage, 2)}%;"></div>
                     <div class="ua-bar-value">{count} ({percentage:.1f}%)</div>
                 </div>
-            ''')
-        html.append('</div>')
-        
+            """
+            )
+        html.append("</div>")
+
         # OS statistics
         html.append('<div class="ua-category"><h3>Operating Systems</h3>')
-        sorted_os = sorted(categories['operating_systems'].items(), key=lambda x: x[1], reverse=True)
+        sorted_os = sorted(
+            categories["operating_systems"].items(), key=lambda x: x[1], reverse=True
+        )
         for os, count in sorted_os:
-            percentage = (count / categories['total']) * 100
-            html.append(f'''
+            percentage = (count / categories["total"]) * 100
+            html.append(
+                f"""
                 <div class="ua-bar-container">
                     <div class="ua-bar-label">{os}</div>
                     <div class="ua-bar" style="width: {max(percentage, 2)}%;"></div>
                     <div class="ua-bar-value">{count} ({percentage:.1f}%)</div>
                 </div>
-            ''')
-        html.append('</div>')
-        
+            """
+            )
+        html.append("</div>")
+
         # Device type statistics
         html.append('<div class="ua-category"><h3>Device Types</h3>')
-        sorted_devices = sorted(categories['device_types'].items(), key=lambda x: x[1], reverse=True)
+        sorted_devices = sorted(
+            categories["device_types"].items(), key=lambda x: x[1], reverse=True
+        )
         for device, count in sorted_devices:
-            percentage = (count / categories['total']) * 100
-            html.append(f'''
+            percentage = (count / categories["total"]) * 100
+            html.append(
+                f"""
                 <div class="ua-bar-container">
                     <div class="ua-bar-label">{device}</div>
                     <div class="ua-bar" style="width: {max(percentage, 2)}%;"></div>
                     <div class="ua-bar-value">{count} ({percentage:.1f}%)</div>
                 </div>
-            ''')
-        html.append('</div>')
-        
+            """
+            )
+        html.append("</div>")
+
         # Bot percentage
-        if categories['bots'] > 0:
-            bot_percentage = (categories['bots'] / categories['total']) * 100
-            html.append(f'<div class="ua-bot-note">Bot/Crawler traffic: {categories["bots"]} requests ({bot_percentage:.1f}%)</div>')
-        
-        html.append('</div>')
-        
-        return mark_safe(''.join(html))
-    user_agent_stats.short_description = 'User Agent Statistics'
+        if categories["bots"] > 0:
+            bot_percentage = (categories["bots"] / categories["total"]) * 100
+            html.append(
+                f'<div class="ua-bot-note">Bot/Crawler traffic: {categories["bots"]} requests ({bot_percentage:.1f}%)</div>'
+            )
+
+        html.append("</div>")
+
+        return mark_safe("".join(html))
+
+    user_agent_stats.short_description = "User Agent Statistics"
 
 
 class LogUserAgentAdmin(ReadOnlyAdmin):
     """Admin class for LogUserAgent model."""
-    list_display = ('browser', 'browser_version', 'operating_system', 'device_type', 'is_bot', 'usage_count')
-    list_filter = ('browser', 'operating_system', 'device_type', 'is_bot')
-    search_fields = ('user_agent', 'browser', 'operating_system')
-    readonly_fields = ('user_agent', 'browser', 'browser_version', 'operating_system', 'device_type', 'is_bot', 'usage_details')
-    
+
+    list_display = (
+        "browser",
+        "browser_version",
+        "operating_system",
+        "device_type",
+        "is_bot",
+        "usage_count",
+    )
+    list_filter = ("browser", "operating_system", "device_type", "is_bot")
+    search_fields = ("user_agent", "browser", "operating_system")
+    readonly_fields = (
+        "user_agent",
+        "browser",
+        "browser_version",
+        "operating_system",
+        "device_type",
+        "is_bot",
+        "usage_details",
+    )
+
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        qs = qs.annotate(usage_count=models.Count('access_logs'))
+        qs = qs.annotate(usage_count=models.Count("access_logs"))
         return qs
-    
+
     def usage_count(self, obj):
         """Return number of times this user agent appears in logs."""
         return obj.usage_count
-    usage_count.admin_order_field = 'usage_count'
-    usage_count.short_description = 'Usage Count'
-    
+
+    usage_count.admin_order_field = "usage_count"
+    usage_count.short_description = "Usage Count"
+
     def usage_details(self, obj):
         """Show details of how this user agent is used."""
         from django.db.models import Count
-        
+
         # Get user count and IP count
-        user_count = AccessLog.objects.filter(
-            user_agent_normalized=obj
-        ).values('user').distinct().count()
-        
-        ip_count = AccessLog.objects.filter(
-            user_agent_normalized=obj
-        ).values('ip').distinct().count()
-        
+        user_count = (
+            AccessLog.objects.filter(user_agent_normalized=obj)
+            .values("user")
+            .distinct()
+            .count()
+        )
+
+        ip_count = (
+            AccessLog.objects.filter(user_agent_normalized=obj)
+            .values("ip")
+            .distinct()
+            .count()
+        )
+
         # Get top 10 paths accessed with this user agent
-        top_paths = AccessLog.objects.filter(
-            user_agent_normalized=obj
-        ).values('path__path').annotate(
-            count=Count('path')
-        ).order_by('-count')[:10]
-        
+        top_paths = (
+            AccessLog.objects.filter(user_agent_normalized=obj)
+            .values("path__path")
+            .annotate(count=Count("path"))
+            .order_by("-count")[:10]
+        )
+
         # Create HTML for the statistics
         style = """
         <style>
@@ -1258,32 +1445,41 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
             .ua-path-count { font-weight: bold; color: #0066cc; margin-right: 10px; }
         </style>
         """
-        
+
         html = [style, '<div class="ua-usage">']
-        
+
         # Usage statistics
         html.append('<div class="ua-usage-stat">')
-        html.append(f'<span class="ua-stat-label">Total requests:</span> {obj.usage_count}</div>')
-        html.append(f'<div class="ua-usage-stat"><span class="ua-stat-label">Unique users:</span> {user_count}</div>')
-        html.append(f'<div class="ua-usage-stat"><span class="ua-stat-label">Unique IP addresses:</span> {ip_count}</div>')
-        
+        html.append(
+            f'<span class="ua-stat-label">Total requests:</span> {obj.usage_count}</div>'
+        )
+        html.append(
+            f'<div class="ua-usage-stat"><span class="ua-stat-label">Unique users:</span> {user_count}</div>'
+        )
+        html.append(
+            f'<div class="ua-usage-stat"><span class="ua-stat-label">Unique IP addresses:</span> {ip_count}</div>'
+        )
+
         # Path statistics
         if top_paths:
-            html.append('<h3>Top Accessed Paths</h3>')
+            html.append("<h3>Top Accessed Paths</h3>")
             html.append('<div class="ua-path-list">')
             for item in top_paths:
-                html.append(f'''
+                html.append(
+                    f"""
                     <div class="ua-path-item">
                         <span class="ua-path-count">{item["count"]}</span>
                         <span class="ua-path-url">{item["path__path"]}</span>
                     </div>
-                ''')
-            html.append('</div>')
-        
-        html.append('</div>')
-        
-        return mark_safe(''.join(html))
-    usage_details.short_description = 'Usage Details'
+                """
+                )
+            html.append("</div>")
+
+        html.append("</div>")
+
+        return mark_safe("".join(html))
+
+    usage_details.short_description = "Usage Details"
 
 
 # Register models with their admin classes
@@ -1293,4 +1489,3 @@ admin.site.register(LogPath, LogPathAdmin)
 admin.site.register(LogSessionKey, LogSessionKeyAdmin)
 admin.site.register(LogUser, LogUserAdmin)
 admin.site.register(LogUserAgent, LogUserAgentAdmin)
-

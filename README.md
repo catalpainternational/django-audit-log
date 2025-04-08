@@ -24,6 +24,7 @@ INSTALLED_APPS = [
 - Tracks user, session, IP, and user agent information
 - Normalizes and categorizes user agent data
 - Configurable sampling to reduce database usage
+- Includes sampling metadata for audit trail completeness
 
 ## Configuration
 
@@ -55,6 +56,21 @@ The logging behavior follows these rules:
 3. All other URLs will never be logged
 
 If neither URL list is defined, the system will fall back to sampling all URLs at the configured rate for backward compatibility.
+
+### Sampling Metadata Fields
+
+Each `AccessLog` entry includes the following sampling metadata fields to provide a complete audit trail:
+
+- `in_always_log_urls`: Boolean indicating whether the URL matched a pattern in `AUDIT_LOG_ALWAYS_LOG_URLS`
+- `in_sample_urls`: Boolean indicating whether the URL matched a pattern in `AUDIT_LOG_SAMPLE_URLS`
+- `sample_rate`: The value of `AUDIT_LOG_SAMPLE_RATE` at the time the log was created
+
+These fields are useful for:
+
+- Understanding why a particular request was logged
+- Analyzing the completeness of your audit logs
+- Estimating the total traffic based on sampled logs
+- Fine-tuning your sampling configuration
 
 ### Example Sampling Configurations
 
