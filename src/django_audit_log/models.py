@@ -10,6 +10,8 @@ from functools import reduce
 from operator import or_
 from typing import Dict, List, Optional, Tuple, Union, Any
 from urllib.parse import urlparse
+import random
+import re
 
 # Django imports
 from django.conf import settings
@@ -291,6 +293,10 @@ class AccessLog(models.Model):
         Returns:
             Optional[AccessLog]: The created AccessLog instance or None if creation failed
         """
+        # Check if we should log this request based on sampling settings
+        if not cls._should_log_request(request):
+            return None
+            
         def get_data() -> Dict[str, Any]:
             """
             Extract cleaned GET and POST data,
@@ -347,6 +353,49 @@ class AccessLog(models.Model):
             capture_exception(e)
             return None
             
+    @classmethod
+    def _should_log_request(cls, request: HttpRequest) -> bool:
+        """
+        Determine if the request should be logged based on sampling settings.
+        
+        The decision is made based on:
+        1. AUDIT_LOG_ALWAYS_LOG_URLS - URLs that should always be logged (no sampling)
+        2. AUDIT_LOG_SAMPLE_URLS - URLs that should be sampled at the sample rate
+        3. All other URLs are never logged
+        
+        Args:
+            request: The HTTP request object
+            
+        Returns:
+            bool: True if the request should be logged, False otherwise
+        """
+        # Default sample rate is 100% for URLs in the sampling list
+        sample_rate = getattr(settings, 'AUDIT_LOG_SAMPLE_RATE', 1.0)
+        
+        # Get URL lists from settings with empty lists as defaults
+        always_log_urls = getattr(settings, 'AUDIT_LOG_ALWAYS_LOG_URLS', [])
+        sample_urls = getattr(settings, 'AUDIT_LOG_SAMPLE_URLS', [])
+        
+        # If no URL patterns are specified in either list, fall back to logging all URLs at the sample rate
+        # This maintains backward compatibility
+        if not always_log_urls and not sample_urls:
+            return random.random() < sample_rate
+        
+        path = request.path
+        
+        # First check if the URL should always be logged
+        for pattern in always_log_urls:
+            if re.match(pattern, path):
+                return True
+                
+        # Then check if the URL should be sampled
+        for pattern in sample_urls:
+            if re.match(pattern, path):
+                return random.random() < sample_rate
+                
+        # URLs not in either list are never logged
+        return False
+
     def __str__(self) -> str:
         """Return a string representation of the AccessLog."""
         status = f" [{self.status_code}]" if self.status_code else ""
