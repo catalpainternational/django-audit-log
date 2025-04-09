@@ -41,25 +41,30 @@ class LogPath(models.Model):
             models.Index(fields=["path"]),
         ]
 
-    @property
-    def parsed_path(self):
-        """Parse the path using urlparse and return the result."""
-        return urlparse(self.path)
-
-    @property
-    def resolver_match(self) -> Optional[ResolverMatch]:
+    @staticmethod
+    def normalize_path(url: str) -> str:
         """
-        Return the view name as it would be in the current schema.
-        This may be different from the `view_name` attribute as
-        code changes.
+        Normalize a URL by removing method, server, and port information.
+        Also handles relative URLs.
+
+        Args:
+            url: The URL to normalize
 
         Returns:
-            Optional[ResolverMatch]: The resolver match object or None if path can't be resolved
+            str: The normalized path
         """
-        try:
-            return resolve(self.parsed_path.path)
-        except Resolver404:
-            return None
+        if not url:
+            return ""
+
+        # Parse the URL
+        parsed = urlparse(url)
+        
+        # If it's already just a path (no scheme/netloc), return it cleaned
+        if not parsed.scheme and not parsed.netloc:
+            return parsed.path
+
+        # Return just the path component
+        return parsed.path
 
     @classmethod
     def from_request(cls, request: HttpRequest) -> "LogPath":
@@ -72,7 +77,8 @@ class LogPath(models.Model):
         Returns:
             LogPath: The LogPath instance for the request path
         """
-        return cls.objects.get_or_create(path=request.path)[0]
+        normalized_path = cls.normalize_path(request.path)
+        return cls.objects.get_or_create(path=normalized_path)[0]
 
     @classmethod
     def from_referrer(cls, request: HttpRequest) -> Optional["LogPath"]:
@@ -90,12 +96,13 @@ class LogPath(models.Model):
             return None
 
         try:
-            return cls.objects.get_or_create(path=referrer)[0]
+            normalized_path = cls.normalize_path(referrer)
+            return cls.objects.get_or_create(path=normalized_path)[0]
         except cls.MultipleObjectsReturned:
             # Log this situation as it indicates data inconsistency
             if settings.DEBUG:
                 print(f"Multiple LogPath objects found for referrer: {referrer}")
-            return cls.objects.filter(path=referrer).first()
+            return cls.objects.filter(path=cls.normalize_path(referrer)).first()
 
     @classmethod
     def from_response(cls, response: Optional[HttpResponse]) -> Optional["LogPath"]:
@@ -112,7 +119,8 @@ class LogPath(models.Model):
             return None
 
         try:
-            return cls.objects.get_or_create(path=response.url)[0]
+            normalized_path = cls.normalize_path(response.url)
+            return cls.objects.get_or_create(path=normalized_path)[0]
         except AttributeError:
             return None
 
@@ -354,6 +362,14 @@ class AccessLog(models.Model):
         Returns:
             Optional[AccessLog]: The created AccessLog instance or None if creation failed
         """
+        # Get excluded IPs from settings
+        excluded_ips = getattr(settings, "AUDIT_LOG_EXCLUDED_IPS", ["127.0.0.1"])
+
+        # Check if the request IP is excluded
+        ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() or request.META.get("REMOTE_ADDR")
+        if ip in excluded_ips:
+            return None
+
         # Check if we should log this request based on sampling settings
         sampling_info = cls._check_sampling(request)
         if not sampling_info.should_log:
@@ -639,6 +655,8 @@ class UserAgentUtil:
 
     # Browser pattern regex
     BROWSER_PATTERNS = [
+        (r"tl\.eskola\.eskola_app-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Non-playstore format
+        (r"tl\.eskola\.eskola_app\.playstore-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Playstore format
         (r"Chrome/(\d+)", "Chrome"),
         (r"Firefox/(\d+)", "Firefox"),
         (r"Safari/(\d+)", "Safari"),
@@ -655,7 +673,7 @@ class UserAgentUtil:
         (r"Googlebot", "Googlebot"),
         (r"bingbot", "Bingbot"),
         (r"DuckDuckBot", "DuckDuckBot"),
-        (r"tl\.eskola\.eskola_app", "Eskola APK"),  # Added Eskola APK detection
+        (r"Dalvik/(\d+)", "Dalvik"),  # Android Runtime Environment
     ]
 
     # OS pattern regex
@@ -719,10 +737,21 @@ class UserAgentUtil:
             "browser_version": None,
             "os": "Unknown",
             "os_version": None,
-            "device_type": "Desktop",  # Default to desktop
+            "device_type": "Mobile",  # Default to Mobile for Eskola APK
             "is_bot": False,
             "raw": user_agent,
         }
+
+        # Special case for Eskola APK (both formats)
+        eskola_match = re.search(r"tl\.eskola\.eskola_app(?:\.playstore)?-(\d+\.\d+\.\d+)-release(?:/(\w+))?", user_agent)
+        if eskola_match:
+            result["browser"] = "Eskola APK"
+            result["browser_version"] = eskola_match.group(1)
+            result["os"] = "Android"
+            # Try to extract device model if present
+            if eskola_match.group(2):
+                result["os_version"] = f"Device: {eskola_match.group(2)}"
+            return result
 
         # Check if it's a bot
         for pattern, _ in cls.BOT_PATTERNS:

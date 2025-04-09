@@ -697,6 +697,7 @@ class LogUserAdmin(ReadOnlyAdmin):
         "url_access_stats",
         "recent_activity",
         "user_agent_stats",
+        "distinct_user_agents"
     )
 
     # Set up the list_filter with conditional DateRangeFilter if available
@@ -1012,6 +1013,108 @@ class LogUserAdmin(ReadOnlyAdmin):
 
     url_access_stats.short_description = "URL Access Statistics"
 
+    def distinct_user_agents(self, obj):
+        """Display a list of all distinct user agents used by this user."""
+        from django.db.models import Count
+
+        # Get all distinct user agents for this user
+        user_agents = (
+            AccessLog.objects.filter(user=obj)
+            .exclude(user_agent_normalized__isnull=True)
+            .values(
+                'user_agent_normalized__user_agent',
+                'user_agent_normalized__browser',
+                'user_agent_normalized__browser_version',
+                'user_agent_normalized__operating_system',
+                'user_agent_normalized__operating_system_version',
+                'user_agent_normalized__device_type',
+                'user_agent_normalized__is_bot'
+            )
+            .annotate(count=Count('user_agent_normalized'))
+            .order_by('-count')
+        )
+
+        if not user_agents:
+            return "No user agent data available"
+
+        style = """
+        <style>
+            .ua-list {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+            }
+            .ua-list th {
+                background-color: #4a6785;
+                color: white;
+                text-align: left;
+                padding: 8px;
+            }
+            .ua-list td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                vertical-align: top;
+            }
+            .ua-list tr:nth-child(even) {
+                background-color: #f2f2f2;
+            }
+            .ua-list tr:hover {
+                background-color: #ddd;
+            }
+            .ua-count {
+                font-weight: bold;
+                color: #0066cc;
+            }
+            .ua-raw {
+                font-family: monospace;
+                font-size: 0.9em;
+                color: #666;
+                margin-top: 4px;
+            }
+            .ua-bot {
+                color: #dc3545;
+                font-weight: bold;
+            }
+        </style>
+        """
+
+        html = [
+            style,
+            '''<table class="ua-list">
+                <tr>
+                    <th>Browser</th>
+                    <th>Operating System</th>
+                    <th>Device Type</th>
+                    <th>Usage Count</th>
+                    <th>Raw User Agent</th>
+                </tr>'''
+        ]
+
+        for agent in user_agents:
+            browser = f"{agent['user_agent_normalized__browser']} {agent['user_agent_normalized__browser_version'] or ''}"
+            os_version = f" {agent['user_agent_normalized__operating_system_version']}" if agent['user_agent_normalized__operating_system_version'] else ""
+            os = f"{agent['user_agent_normalized__operating_system']}{os_version}"
+            
+            bot_class = ' class="ua-bot"' if agent['user_agent_normalized__is_bot'] else ''
+            
+            html.append(f'''
+                <tr{bot_class}>
+                    <td>{browser}</td>
+                    <td>{os}</td>
+                    <td>{agent['user_agent_normalized__device_type']}</td>
+                    <td class="ua-count">{agent['count']}</td>
+                    <td>
+                        <div class="ua-raw">{agent['user_agent_normalized__user_agent']}</div>
+                    </td>
+                </tr>
+            ''')
+
+        html.append('</table>')
+        
+        return mark_safe(''.join(html))
+
+    distinct_user_agents.short_description = "Distinct User Agents"
+
 
 class LogIpAddressAdmin(ReadOnlyAdmin):
     """Admin class for LogIpAddress model."""
@@ -1151,17 +1254,20 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         "browser",
         "browser_version",
         "operating_system",
+        "operating_system_version",
         "device_type",
         "is_bot",
         "usage_count",
+        "unique_users_count",
     )
-    list_filter = ("browser", "operating_system", "device_type", "is_bot")
+    list_filter = ("browser", "operating_system", "device_type", "is_bot", "operating_system_version",)
     search_fields = ("user_agent", "browser", "operating_system")
     readonly_fields = (
         "user_agent",
         "browser",
         "browser_version",
         "operating_system",
+        "operating_system_version",
         "device_type",
         "is_bot",
         "usage_details",
@@ -1169,7 +1275,10 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        qs = qs.annotate(usage_count=models.Count("access_logs"))
+        qs = qs.annotate(
+            usage_count=models.Count("access_logs"),
+            unique_users=models.Count("access_logs__user", distinct=True)
+        )
         return qs
 
     def usage_count(self, obj):
@@ -1178,6 +1287,13 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
 
     usage_count.admin_order_field = "usage_count"
     usage_count.short_description = "Usage Count"
+
+    def unique_users_count(self, obj):
+        """Return number of unique users that have used this user agent."""
+        return obj.unique_users
+
+    unique_users_count.admin_order_field = "unique_users"
+    unique_users_count.short_description = "Unique Users"
 
     def usage_details(self, obj):
         """Show details of how this user agent is used."""
