@@ -516,18 +516,18 @@ class LogUserAgent(models.Model):
     """
 
     user_agent = models.TextField(unique=True, editable=False)
-    browser = models.CharField(max_length=50, null=True, blank=True, editable=False)
+    browser = models.CharField(max_length=256, null=True, blank=True, editable=False)
     browser_version = models.CharField(
-        max_length=20, null=True, blank=True, editable=False
+        max_length=256, null=True, blank=True, editable=False
     )
     operating_system = models.CharField(
-        max_length=50, null=True, blank=True, editable=False
+        max_length=256, null=True, blank=True, editable=False
     )
     operating_system_version = models.CharField(
-        max_length=20, null=True, blank=True, editable=False,
+        max_length=256, null=True, blank=True, editable=False,
         help_text="Version of the operating system if available"
     )
-    device_type = models.CharField(max_length=20, null=True, blank=True, editable=False)
+    device_type = models.CharField(max_length=256, null=True, blank=True, editable=False)
     is_bot = models.BooleanField(default=False, editable=False)
 
     class Meta:

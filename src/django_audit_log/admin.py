@@ -8,6 +8,7 @@ from .models import (
     LogUserAgent,
 )
 from django.db import models
+from django.db.models.functions import Cast
 from django.utils.safestring import mark_safe
 from django.contrib.admin import SimpleListFilter
 from django.utils import timezone
@@ -141,12 +142,11 @@ class AccessLogAdmin(ReadOnlyAdmin):
         "method",
         "status_code",
         "user",
-        "ip",
         BrowserTypeFilter,
         DeviceTypeFilter,
         "timestamp",
     )
-    search_fields = ("path__path", "user__user_name", "ip__address")
+    search_fields = ("path__path", "user__user_name")
     date_hierarchy = "timestamp"
     readonly_fields = (
         "path",
@@ -511,8 +511,21 @@ class MultipleIPFilter(SimpleListFilter):
 class UserAgentUtil:
     """Utility class for parsing and normalizing user agents."""
 
+    # Samsung device model mapping
+    SAMSUNG_DEVICE_MODELS = {
+        'gta4ljt': 'Galaxy Tab A4 Lite',
+        'gta8xx': 'Galaxy Tab A8',
+        'gta9pxxx': 'Galaxy Tab A9+',
+        'gtanotexlltedx': 'Galaxy Note 10.1',
+        'gtaxlltexx': 'Galaxy Tab A 10.1',
+        'gts210ltedx': 'Galaxy Tab S2 9.7 LTE',
+        'gts210ltexx': 'Galaxy Tab S2 9.7 LTE',
+    }
+
     # Browser pattern regex
     BROWSER_PATTERNS = [
+        (r"tl\.eskola\.eskola_app-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Non-playstore format
+        (r"tl\.eskola\.eskola_app\.playstore-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Playstore format
         (r"Chrome/(\d+)", "Chrome"),
         (r"Firefox/(\d+)", "Firefox"),
         (r"Safari/(\d+)", "Safari"),
@@ -569,6 +582,11 @@ class UserAgentUtil:
     ]
 
     @classmethod
+    def get_device_model_name(cls, device_code):
+        """Get the human-readable device name from a Samsung device code."""
+        return cls.SAMSUNG_DEVICE_MODELS.get(device_code, f"Unknown Samsung Device ({device_code})")
+
+    @classmethod
     def normalize_user_agent(cls, user_agent):
         """
         Normalize a user agent string to categorize browsers, OS, and device types.
@@ -584,6 +602,7 @@ class UserAgentUtil:
                 "browser": "Unknown",
                 "browser_version": None,
                 "os": "Unknown",
+                "os_version": None,
                 "device_type": "Unknown",
                 "is_bot": False,
                 "raw": user_agent,
@@ -593,10 +612,24 @@ class UserAgentUtil:
             "browser": "Unknown",
             "browser_version": None,
             "os": "Unknown",
-            "device_type": "Desktop",  # Default to desktop
+            "os_version": None,
+            "device_type": "Mobile",  # Default to Mobile for Eskola APK
             "is_bot": False,
             "raw": user_agent,
         }
+
+        # Special case for Eskola APK (both formats)
+        eskola_match = re.search(r"tl\.eskola\.eskola_app(?:\.playstore)?-(\d+\.\d+\.\d+)-release(?:/(\w+))?", user_agent)
+        if eskola_match:
+            result["browser"] = "Eskola APK"
+            result["browser_version"] = eskola_match.group(1)
+            result["os"] = "Android"
+            # Try to extract device model if present
+            if eskola_match.group(2):
+                device_code = eskola_match.group(2)
+                device_name = cls.get_device_model_name(device_code)
+                result["os_version"] = f"Device: {device_code} ({device_name})"
+            return result
 
         # Check if it's a bot
         for pattern, _ in cls.BOT_PATTERNS:
@@ -1271,15 +1304,31 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         "device_type",
         "is_bot",
         "usage_details",
+        "related_users"
     )
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         qs = qs.annotate(
             usage_count=models.Count("access_logs"),
-            unique_users=models.Count("access_logs__user", distinct=True)
-        )
+            unique_users=models.Count("access_logs__user", distinct=True),
+            # Add semantic version ordering
+            version_as_int=models.Case(
+                models.When(
+                    operating_system_version__regex=r'^\d+$',
+                    then=Cast('operating_system_version', models.IntegerField())
+                ),
+                default=0,
+                output_field=models.IntegerField(),
+            )
+        ).order_by('operating_system', '-version_as_int', 'operating_system_version')
         return qs
+
+    def operating_system_version(self, obj):
+        """Display the operating system version with semantic ordering."""
+        return obj.operating_system_version
+    operating_system_version.admin_order_field = 'version_as_int'
+    operating_system_version.short_description = "OS Version"
 
     def usage_count(self, obj):
         """Return number of times this user agent appears in logs."""
@@ -1369,6 +1418,101 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         return mark_safe("".join(html))
 
     usage_details.short_description = "Usage Details"
+
+    def related_users(self, obj):
+        """Display a list of users who have used this user agent."""
+        from django.db.models import Count
+        from django.urls import reverse
+        from django.utils.html import format_html
+
+        # Get users who have used this user agent with their usage counts
+        users = (
+            AccessLog.objects.filter(user_agent_normalized=obj)
+            .values('user__id', 'user__user_name')
+            .annotate(
+                usage_count=Count('id'),
+                last_used=models.Max('timestamp')
+            )
+            .order_by('-usage_count')
+        )
+
+        if not users:
+            return "No users have used this user agent"
+
+        style = """
+        <style>
+            .user-list {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+            }
+            .user-list th {
+                background-color: #4a6785;
+                color: white;
+                text-align: left;
+                padding: 8px;
+            }
+            .user-list td {
+                border: 1px solid #ddd;
+                padding: 8px;
+            }
+            .user-list tr:nth-child(even) {
+                background-color: #f2f2f2;
+            }
+            .user-list tr:hover {
+                background-color: #ddd;
+            }
+            .user-count {
+                text-align: center;
+                font-weight: bold;
+                color: #0066cc;
+            }
+            .user-link {
+                color: #0066cc;
+                text-decoration: none;
+            }
+            .user-link:hover {
+                text-decoration: underline;
+            }
+            .last-used {
+                color: #666;
+                font-size: 0.9em;
+            }
+        </style>
+        """
+
+        html = [
+            style,
+            '''<table class="user-list">
+                <tr>
+                    <th>User</th>
+                    <th>Usage Count</th>
+                    <th>Last Used</th>
+                </tr>'''
+        ]
+
+        for user in users:
+            # Create a link to the user's admin page
+            user_url = reverse('admin:django_audit_log_loguser_change', args=[user['user__id']])
+            user_link = format_html(
+                '<a class="user-link" href="{}">{}</a>',
+                user_url,
+                user['user__user_name']
+            )
+            
+            html.append(f'''
+                <tr>
+                    <td>{user_link}</td>
+                    <td class="user-count">{user['usage_count']}</td>
+                    <td class="last-used">{user['last_used'].strftime('%Y-%m-%d %H:%M:%S')}</td>
+                </tr>
+            ''')
+
+        html.append('</table>')
+        
+        return mark_safe(''.join(html))
+
+    related_users.short_description = "Users of this User Agent"
 
 
 # Register models with their admin classes

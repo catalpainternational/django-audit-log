@@ -1,6 +1,6 @@
 [project]
 name = "django-audit-log"
-version = "0.0.2"  # Should be same as tag
+version = "0.0.4"  # Should be same as tag
 description = "Add your description here"
 readme = "README.md"
 authors = [
