@@ -563,7 +563,7 @@ class UserAgentUtil:
     # Bot/crawler patterns
     BOT_PATTERNS = [
         (
-            r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu",
+            r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu|bitdiscovery-suggestions",
             "Bot/Crawler",
         ),
     ]
