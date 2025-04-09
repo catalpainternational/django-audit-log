@@ -41,25 +41,30 @@ class LogPath(models.Model):
             models.Index(fields=["path"]),
         ]
 
-    @property
-    def parsed_path(self):
-        """Parse the path using urlparse and return the result."""
-        return urlparse(self.path)
-
-    @property
-    def resolver_match(self) -> Optional[ResolverMatch]:
+    @staticmethod
+    def normalize_path(url: str) -> str:
         """
-        Return the view name as it would be in the current schema.
-        This may be different from the `view_name` attribute as
-        code changes.
+        Normalize a URL by removing method, server, and port information.
+        Also handles relative URLs.
+
+        Args:
+            url: The URL to normalize
 
         Returns:
-            Optional[ResolverMatch]: The resolver match object or None if path can't be resolved
+            str: The normalized path
         """
-        try:
-            return resolve(self.parsed_path.path)
-        except Resolver404:
-            return None
+        if not url:
+            return ""
+
+        # Parse the URL
+        parsed = urlparse(url)
+        
+        # If it's already just a path (no scheme/netloc), return it cleaned
+        if not parsed.scheme and not parsed.netloc:
+            return parsed.path
+
+        # Return just the path component
+        return parsed.path
 
     @classmethod
     def from_request(cls, request: HttpRequest) -> "LogPath":
@@ -72,7 +77,8 @@ class LogPath(models.Model):
         Returns:
             LogPath: The LogPath instance for the request path
         """
-        return cls.objects.get_or_create(path=request.path)[0]
+        normalized_path = cls.normalize_path(request.path)
+        return cls.objects.get_or_create(path=normalized_path)[0]
 
     @classmethod
     def from_referrer(cls, request: HttpRequest) -> Optional["LogPath"]:
@@ -90,12 +96,13 @@ class LogPath(models.Model):
             return None
 
         try:
-            return cls.objects.get_or_create(path=referrer)[0]
+            normalized_path = cls.normalize_path(referrer)
+            return cls.objects.get_or_create(path=normalized_path)[0]
         except cls.MultipleObjectsReturned:
             # Log this situation as it indicates data inconsistency
             if settings.DEBUG:
                 print(f"Multiple LogPath objects found for referrer: {referrer}")
-            return cls.objects.filter(path=referrer).first()
+            return cls.objects.filter(path=cls.normalize_path(referrer)).first()
 
     @classmethod
     def from_response(cls, response: Optional[HttpResponse]) -> Optional["LogPath"]:
@@ -112,7 +119,8 @@ class LogPath(models.Model):
             return None
 
         try:
-            return cls.objects.get_or_create(path=response.url)[0]
+            normalized_path = cls.normalize_path(response.url)
+            return cls.objects.get_or_create(path=normalized_path)[0]
         except AttributeError:
             return None
 
@@ -354,6 +362,14 @@ class AccessLog(models.Model):
         Returns:
             Optional[AccessLog]: The created AccessLog instance or None if creation failed
         """
+        # Get excluded IPs from settings
+        excluded_ips = getattr(settings, "AUDIT_LOG_EXCLUDED_IPS", ["127.0.0.1"])
+
+        # Check if the request IP is excluded
+        ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() or request.META.get("REMOTE_ADDR")
+        if ip in excluded_ips:
+            return None
+
         # Check if we should log this request based on sampling settings
         sampling_info = cls._check_sampling(request)
         if not sampling_info.should_log:
@@ -507,6 +523,10 @@ class LogUserAgent(models.Model):
     operating_system = models.CharField(
         max_length=50, null=True, blank=True, editable=False
     )
+    operating_system_version = models.CharField(
+        max_length=20, null=True, blank=True, editable=False,
+        help_text="Version of the operating system if available"
+    )
     device_type = models.CharField(max_length=20, null=True, blank=True, editable=False)
     is_bot = models.BooleanField(default=False, editable=False)
 
@@ -519,6 +539,68 @@ class LogUserAgent(models.Model):
             models.Index(fields=["device_type"]),
             models.Index(fields=["is_bot"]),
         ]
+
+    @classmethod
+    def reimport_all(cls, batch_size=1000):
+        """
+        Reprocess all user agents with current parsing logic.
+        This is useful when the parsing logic has been updated.
+
+        Args:
+            batch_size: Number of records to process in each batch
+
+        Returns:
+            dict: Summary of reimport results
+        """
+        from django.db import transaction
+        from django.db.models import Count
+
+        # Get all distinct user agents
+        total_agents = cls.objects.count()
+        processed = 0
+        updated = 0
+
+        print(f"Found {total_agents} user agents to reprocess")
+
+        # Process in batches to avoid memory issues
+        for i in range(0, total_agents, batch_size):
+            batch = cls.objects.all()[i:i + batch_size]
+            
+            with transaction.atomic():
+                for agent in batch:
+                    processed += 1
+                    
+                    # Parse with current logic
+                    info = UserAgentUtil.normalize_user_agent(agent.user_agent)
+                    
+                    # Check if any fields would be updated
+                    needs_update = (
+                        agent.browser != info["browser"] or
+                        agent.browser_version != info["browser_version"] or
+                        agent.operating_system != info["os"] or
+                        agent.operating_system_version != info["os_version"] or
+                        agent.device_type != info["device_type"] or
+                        agent.is_bot != info["is_bot"]
+                    )
+                    
+                    if needs_update:
+                        agent.browser = info["browser"]
+                        agent.browser_version = info["browser_version"]
+                        agent.operating_system = info["os"]
+                        agent.operating_system_version = info["os_version"]
+                        agent.device_type = info["device_type"]
+                        agent.is_bot = info["is_bot"]
+                        agent.save()
+                        updated += 1
+
+            if processed % batch_size == 0 or processed == total_agents:
+                print(f"Processed {processed}/{total_agents} user agents, updated {updated}")
+
+        return {
+            "total_agents": total_agents,
+            "processed": processed,
+            "updated": updated,
+        }
 
     @classmethod
     def from_user_agent_string(cls, user_agent_string):
@@ -550,6 +632,7 @@ class LogUserAgent(models.Model):
                     browser=info["browser"],
                     browser_version=info["browser_version"],
                     operating_system=info["os"],
+                    operating_system_version=info["os_version"],
                     device_type=info["device_type"],
                     is_bot=info["is_bot"],
                 )
@@ -563,4 +646,158 @@ class LogUserAgent(models.Model):
                 )
 
     def __str__(self):
-        return f"{self.browser} {self.browser_version or ''} on {self.operating_system} ({self.device_type})"
+        os_version = f" {self.operating_system_version}" if self.operating_system_version else ""
+        return f"{self.browser} {self.browser_version or ''} on {self.operating_system}{os_version} ({self.device_type})"
+
+
+class UserAgentUtil:
+    """Utility class for parsing and normalizing user agents."""
+
+    # Browser pattern regex
+    BROWSER_PATTERNS = [
+        (r"tl\.eskola\.eskola_app-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Non-playstore format
+        (r"tl\.eskola\.eskola_app\.playstore-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Playstore format
+        (r"Chrome/(\d+)", "Chrome"),
+        (r"Firefox/(\d+)", "Firefox"),
+        (r"Safari/(\d+)", "Safari"),
+        (r"Edge/(\d+)", "Edge"),
+        (r"Edg/(\d+)", "Edge"),  # New Edge based on Chromium
+        (r"MSIE\s(\d+)", "Internet Explorer"),
+        (r"Trident/.*rv:(\d+)", "Internet Explorer"),
+        (r"OPR/(\d+)", "Opera"),
+        (r"Opera/(\d+)", "Opera"),
+        (r"UCBrowser/(\d+)", "UC Browser"),
+        (r"SamsungBrowser/(\d+)", "Samsung Browser"),
+        (r"YaBrowser/(\d+)", "Yandex Browser"),
+        (r"HeadlessChrome", "Headless Chrome"),
+        (r"Googlebot", "Googlebot"),
+        (r"bingbot", "Bingbot"),
+        (r"DuckDuckBot", "DuckDuckBot"),
+        (r"Dalvik/(\d+)", "Dalvik"),  # Android Runtime Environment
+    ]
+
+    # OS pattern regex
+    OS_PATTERNS = [
+        (r"Windows NT 10\.0", "Windows 10"),
+        (r"Windows NT 6\.3", "Windows 8.1"),
+        (r"Windows NT 6\.2", "Windows 8"),
+        (r"Windows NT 6\.1", "Windows 7"),
+        (r"Windows NT 6\.0", "Windows Vista"),
+        (r"Windows NT 5\.1", "Windows XP"),
+        (r"Windows NT 5\.0", "Windows 2000"),
+        (r"Macintosh.*Mac OS X", "macOS"),
+        (r"Android\s+(\d+)", "Android"),  # Captures Android version
+        (r"Linux", "Linux"),
+        (r"iPhone.*OS\s+(\d+)", "iOS"),
+        (r"iPad.*OS\s+(\d+)", "iOS"),
+        (r"iPod.*OS\s+(\d+)", "iOS"),
+        (r"CrOS", "Chrome OS"),
+    ]
+
+    # Device type patterns
+    DEVICE_PATTERNS = [
+        (r"iPhone", "Mobile"),
+        (r"iPod", "Mobile"),
+        (r"iPad", "Tablet"),
+        (r"Android.*Mobile", "Mobile"),
+        (r"Android(?!.*Mobile)", "Tablet"),
+        (r"Mobile", "Mobile"),
+        (r"Tablet", "Tablet"),
+    ]
+
+    # Bot/crawler patterns
+    BOT_PATTERNS = [
+        (r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu|DigitalOcean|Palo Alto Networks|Expanse", "Bot/Crawler"),
+    ]
+
+    @classmethod
+    def normalize_user_agent(cls, user_agent):
+        """
+        Normalize a user agent string to categorize browsers, OS, and device types.
+
+        Args:
+            user_agent: The raw user agent string
+
+        Returns:
+            dict: Containing browser, browser_version, os, device_type, is_bot
+        """
+        if not user_agent:
+            return {
+                "browser": "Unknown",
+                "browser_version": None,
+                "os": "Unknown",
+                "os_version": None,
+                "device_type": "Unknown",
+                "is_bot": False,
+                "raw": user_agent,
+            }
+
+        result = {
+            "browser": "Unknown",
+            "browser_version": None,
+            "os": "Unknown",
+            "os_version": None,
+            "device_type": "Mobile",  # Default to Mobile for Eskola APK
+            "is_bot": False,
+            "raw": user_agent,
+        }
+
+        # Special case for Eskola APK (both formats)
+        eskola_match = re.search(r"tl\.eskola\.eskola_app(?:\.playstore)?-(\d+\.\d+\.\d+)-release(?:/(\w+))?", user_agent)
+        if eskola_match:
+            result["browser"] = "Eskola APK"
+            result["browser_version"] = eskola_match.group(1)
+            result["os"] = "Android"
+            # Try to extract device model if present
+            if eskola_match.group(2):
+                result["os_version"] = f"Device: {eskola_match.group(2)}"
+            return result
+
+        # Check if it's a bot
+        for pattern, _ in cls.BOT_PATTERNS:
+            if re.search(pattern, user_agent, re.IGNORECASE):
+                result["is_bot"] = True
+                result["browser"] = "Bot/Crawler"
+                result["device_type"] = "Bot"
+                break
+
+        # Detect browser and version
+        for pattern, browser in cls.BROWSER_PATTERNS:
+            match = re.search(pattern, user_agent)
+            if match:
+                result["browser"] = browser
+                # Get version if available
+                if len(match.groups()) > 0 and match.group(1).isdigit():
+                    result["browser_version"] = match.group(1)
+                break
+
+        # Special case for Dalvik (Android) user agents
+        if "Dalvik" in user_agent:
+            result["os"] = "Android"
+            # Try to extract Android version
+            android_match = re.search(r"Android\s+(\d+(?:\.\d+)*)", user_agent)
+            if android_match:
+                result["os_version"] = android_match.group(1)
+
+        # Detect OS and version for other cases
+        if result["os"] == "Unknown":  # Only if not already set by Dalvik check
+            for pattern, os in cls.OS_PATTERNS:
+                match = re.search(pattern, user_agent)
+                if match:
+                    result["os"] = os
+                    # Extract version if available
+                    if len(match.groups()) > 0:
+                        result["os_version"] = match.group(1)
+                    # Special case for Windows 10
+                    if os == "Windows 10":
+                        result["os_version"] = "10"
+                    break
+
+        # Detect device type (only if not already a bot)
+        if not result["is_bot"]:
+            for pattern, device in cls.DEVICE_PATTERNS:
+                if re.search(pattern, user_agent, re.IGNORECASE):
+                    result["device_type"] = device
+                    break
+
+        return result

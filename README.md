@@ -38,6 +38,24 @@ MIDDLEWARE = [
 
 ## Configuration
 
+### IP Address Exclusion
+
+You can configure certain IP addresses to be excluded from logging entirely:
+
+```python
+# IP addresses that will never be logged (default: ["127.0.0.1"])
+AUDIT_LOG_EXCLUDED_IPS = [
+    "127.0.0.1",      # Local development
+    "10.0.0.5",       # Internal monitoring service
+    "192.168.1.100",  # Load balancer health checks
+]
+```
+
+Requests from these IP addresses will be completely ignored by the audit log system. This is useful for:
+- Excluding local development traffic
+- Ignoring health check requests
+- Preventing monitoring service requests from being logged
+
 ### Sampling Configuration
 
 To limit database usage, you can configure which URLs are logged and at what sampling rate:
@@ -184,7 +202,28 @@ MIDDLEWARE = [
 ]
 ```
 
-Alternatively, you can use the AccessLogMixin in your views:
+## Management Commands
+
+### reimport_user_agents
+
+This command reprocesses all user agents in the database using the current parsing logic. This is useful when you've updated the user agent parsing rules and want to apply them to existing records.
+
+```bash
+# Reprocess all user agents with default batch size (1000)
+python manage.py reimport_user_agents
+
+# Specify a custom batch size
+python manage.py reimport_user_agents --batch-size 500
+```
+
+The command will display progress and provide a summary of the results, including:
+- Total number of user agents processed
+- Number of user agents that were updated
+- Number of user agents that remained unchanged
+
+## Using in Views
+
+You can use the AccessLogMixin in your views:
 
 ```python
 from django_audit_log.mixins import AccessLogMixin
