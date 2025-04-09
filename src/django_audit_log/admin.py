@@ -61,108 +61,26 @@ class BrowserTypeFilter(SimpleListFilter):
 
         value = self.value()
 
-        # First try to filter using the normalized model
         if value == "chrome":
             return queryset.filter(
-                models.Q(user_agent_normalized__browser="Chrome")
-                |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Chrome"
-                )
-            ).exclude(
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Chromium"
-                )
-                | models.Q(user_agent_normalized__browser="Chromium")
-            )
+                user_agent_normalized__browser="Chrome"
+            ).exclude(user_agent_normalized__browser="Chromium")
         elif value == "firefox":
-            return queryset.filter(
-                models.Q(user_agent_normalized__browser="Firefox")
-                |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Firefox"
-                )
-            )
+            return queryset.filter(user_agent_normalized__browser="Firefox")
         elif value == "safari":
             return queryset.filter(
-                models.Q(user_agent_normalized__browser="Safari")
-                |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Safari"
-                )
-            ).exclude(
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Chrome"
-                )
-                | models.Q(user_agent_normalized__browser="Chrome")
-            )
+                user_agent_normalized__browser="Safari"
+            ).exclude(user_agent_normalized__browser="Chrome")
         elif value == "edge":
-            return queryset.filter(
-                models.Q(user_agent_normalized__browser="Edge")
-                |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Edge"
-                )
-                | models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Edg/"
-                )
-            )
+            return queryset.filter(user_agent_normalized__browser="Edge")
         elif value == "ie":
-            return queryset.filter(
-                models.Q(user_agent_normalized__browser="Internet Explorer")
-                |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="MSIE"
-                )
-                | models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Trident"
-                )
-            )
+            return queryset.filter(user_agent_normalized__browser="Internet Explorer")
         elif value == "opera":
-            return queryset.filter(
-                models.Q(user_agent_normalized__browser="Opera")
-                |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="OPR/"
-                )
-                | models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Opera"
-                )
-            )
+            return queryset.filter(user_agent_normalized__browser="Opera")
         elif value == "mobile":
-            return queryset.filter(
-                models.Q(user_agent_normalized__device_type="Mobile")
-                |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Mobile"
-                )
-                | models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Android"
-                )
-                | models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="iPhone"
-                )
-                | models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="iPad"
-                )
-            )
+            return queryset.filter(user_agent_normalized__device_type="Mobile")
         elif value == "bots":
-            return queryset.filter(
-                models.Q(user_agent_normalized__is_bot=True)
-                |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__iregex=r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu",
-                )
-            )
+            return queryset.filter(user_agent_normalized__is_bot=True)
         elif value == "other":
             major_browsers = [
                 "Chrome",
@@ -172,36 +90,7 @@ class BrowserTypeFilter(SimpleListFilter):
                 "Internet Explorer",
                 "Opera",
             ]
-            # First exclude all known major browsers in normalized form
-            q = models.Q(user_agent_normalized__browser__in=major_browsers)
-
-            # Then handle older non-normalized records
-            legacy_conditions = []
-            for browser in [
-                "Chrome",
-                "Firefox",
-                "Safari",
-                "Edge",
-                "Edg/",
-                "MSIE",
-                "Trident",
-                "OPR/",
-                "Opera",
-            ]:
-                legacy_conditions.append(
-                    models.Q(
-                        user_agent_normalized__isnull=True,
-                        user_agent__icontains=browser,
-                    )
-                )
-
-            # Combine all legacy conditions with OR
-            legacy_q = legacy_conditions[0]
-            for condition in legacy_conditions[1:]:
-                legacy_q |= condition
-
-            # Combine modern and legacy exclusions
-            return queryset.exclude(q | legacy_q)
+            return queryset.exclude(user_agent_normalized__browser__in=major_browsers)
 
 
 class DeviceTypeFilter(SimpleListFilter):
@@ -224,93 +113,16 @@ class DeviceTypeFilter(SimpleListFilter):
 
         value = self.value()
         if value == "mobile":
-            return queryset.filter(
-                models.Q(user_agent_normalized__device_type="Mobile")
-                |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Mobile"
-                )
-                | models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="iPhone"
-                )
-                | models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="iPod"
-                )
-            ).exclude(
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="iPad"
-                )
-            )
+            return queryset.filter(user_agent_normalized__device_type="Mobile")
         elif value == "tablet":
-            return queryset.filter(
-                models.Q(user_agent_normalized__device_type="Tablet")
-                |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Tablet"
-                )
-                | models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="iPad"
-                )
-                | models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Android"
-                )
-            ).exclude(
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains="Mobile"
-                )
-            )
+            return queryset.filter(user_agent_normalized__device_type="Tablet")
         elif value == "bot":
-            return queryset.filter(
-                models.Q(user_agent_normalized__is_bot=True)
-                |
-                # Fall back to text search for older records
-                models.Q(
-                    user_agent_normalized__isnull=True,
-                    user_agent__iregex=r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu",
-                )
-            )
+            return queryset.filter(user_agent_normalized__is_bot=True)
         elif value == "desktop":
-            # First try with normalized data
-            desktop_query = models.Q(
+            return queryset.filter(
                 user_agent_normalized__device_type="Desktop",
                 user_agent_normalized__is_bot=False,
             )
-
-            # Then handle legacy non-normalized data
-            mobile_tablet_patterns = [
-                "Mobile",
-                "Tablet",
-                "iPhone",
-                "iPad",
-                "iPod",
-                "Android",
-            ]
-            legacy_q_objects = [
-                models.Q(
-                    user_agent_normalized__isnull=True, user_agent__icontains=pattern
-                )
-                for pattern in mobile_tablet_patterns
-            ]
-
-            # Combine all legacy mobile/tablet conditions with OR
-            if legacy_q_objects:
-                legacy_mobile_tablet_q = legacy_q_objects[0]
-                for q in legacy_q_objects[1:]:
-                    legacy_mobile_tablet_q |= q
-
-                bot_pattern = r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu"
-                legacy_desktop_query = (
-                    models.Q(user_agent_normalized__isnull=True)
-                    & ~legacy_mobile_tablet_q
-                    & ~models.Q(user_agent__iregex=bot_pattern)
-                )
-
-                # Combine modern and legacy queries
-                return queryset.filter(desktop_query | legacy_desktop_query)
-
-            return queryset.filter(desktop_query)
 
 
 class AccessLogAdmin(ReadOnlyAdmin):
@@ -334,7 +146,7 @@ class AccessLogAdmin(ReadOnlyAdmin):
         DeviceTypeFilter,
         "timestamp",
     )
-    search_fields = ("path__path", "user__user_name", "ip__address", "user_agent")
+    search_fields = ("path__path", "user__user_name", "ip__address")
     date_hierarchy = "timestamp"
     readonly_fields = (
         "path",
@@ -356,31 +168,24 @@ class AccessLogAdmin(ReadOnlyAdmin):
         """Return a simplified browser type."""
         if obj.user_agent_normalized:
             return obj.user_agent_normalized.browser
-        elif obj.user_agent:
-            # Fall back to UserAgentUtil for older records
-            ua_info = UserAgentUtil.normalize_user_agent(obj.user_agent)
-            return ua_info["browser"]
         return "Unknown"
 
     browser_type.short_description = "Browser"
 
     def normalized_user_agent(self, obj):
         """Show the normalized user agent info."""
-        if obj.user_agent_normalized:
-            # Use pre-parsed data from the model
-            ua_info = {
-                "browser": obj.user_agent_normalized.browser,
-                "browser_version": obj.user_agent_normalized.browser_version,
-                "os": obj.user_agent_normalized.operating_system,
-                "device_type": obj.user_agent_normalized.device_type,
-                "is_bot": obj.user_agent_normalized.is_bot,
-                "raw": obj.user_agent or obj.user_agent_normalized.user_agent,
-            }
-        elif obj.user_agent:
-            # Fall back to UserAgentUtil for older records
-            ua_info = UserAgentUtil.normalize_user_agent(obj.user_agent)
-        else:
+        if not obj.user_agent_normalized:
             return "No user agent data"
+
+        ua_info = {
+            "browser": obj.user_agent_normalized.browser,
+            "browser_version": obj.user_agent_normalized.browser_version,
+            "os": obj.user_agent_normalized.operating_system,
+            "os_version": obj.user_agent_normalized.operating_system_version,
+            "device_type": obj.user_agent_normalized.device_type,
+            "is_bot": obj.user_agent_normalized.is_bot,
+            "raw": obj.user_agent or obj.user_agent_normalized.user_agent,
+        }
 
         html = f"""
         <style>
@@ -396,6 +201,7 @@ class AccessLogAdmin(ReadOnlyAdmin):
             <div><span class="ua-key">Browser:</span> <span class="ua-browser">{ua_info['browser']}</span></div>
             <div><span class="ua-key">Version:</span> {ua_info['browser_version'] or 'Unknown'}</div>
             <div><span class="ua-key">OS:</span> <span class="ua-os">{ua_info['os']}</span></div>
+            <div><span class="ua-key">OS Version:</span> {ua_info['os_version'] or 'Unknown'}</div>
             <div><span class="ua-key">Device Type:</span> <span class="ua-device">{ua_info['device_type']}</span></div>
             <div><span class="ua-key">Is Bot/Crawler:</span> {ua_info['is_bot']}</div>
             <div class="ua-raw">{ua_info['raw']}</div>
@@ -939,7 +745,8 @@ class LogUserAdmin(ReadOnlyAdmin):
 
         # Get user agent data with counts using the normalized model
         user_agents = (
-            AccessLog.objects.filter(user=obj, user_agent_normalized__isnull=False)
+            AccessLog.objects.filter(user=obj)
+            .exclude(user_agent_normalized__isnull=True)
             .values(
                 "user_agent_normalized__browser",
                 "user_agent_normalized__operating_system",
@@ -950,18 +757,7 @@ class LogUserAdmin(ReadOnlyAdmin):
             .order_by("-count")
         )
 
-        # Also get older data from the text field for backward compatibility
-        legacy_user_agents = (
-            AccessLog.objects.filter(
-                user=obj, user_agent_normalized__isnull=True, user_agent__isnull=False
-            )
-            .exclude(user_agent="")
-            .values_list("user_agent")
-            .annotate(count=Count("user_agent"))
-            .order_by("-count")
-        )
-
-        if not user_agents and not legacy_user_agents:
+        if not user_agents:
             return "No user agent data available"
 
         # Initialize categories
@@ -973,7 +769,7 @@ class LogUserAdmin(ReadOnlyAdmin):
             "total": 0,
         }
 
-        # Process normalized user agents (more efficient)
+        # Process normalized user agents
         for agent in user_agents:
             count = agent["count"]
             categories["total"] += count
@@ -999,29 +795,6 @@ class LogUserAdmin(ReadOnlyAdmin):
             # Count bots
             if agent["user_agent_normalized__is_bot"]:
                 categories["bots"] += count
-
-        # Process legacy user agents
-        if legacy_user_agents:
-            legacy_categories = UserAgentUtil.categorize_user_agents(legacy_user_agents)
-
-            # Merge legacy data
-            categories["total"] += legacy_categories["total"]
-            categories["bots"] += legacy_categories["bots"]
-
-            for browser, count in legacy_categories["browsers"].items():
-                if browser not in categories["browsers"]:
-                    categories["browsers"][browser] = 0
-                categories["browsers"][browser] += count
-
-            for os, count in legacy_categories["operating_systems"].items():
-                if os not in categories["operating_systems"]:
-                    categories["operating_systems"][os] = 0
-                categories["operating_systems"][os] += count
-
-            for device, count in legacy_categories["device_types"].items():
-                if device not in categories["device_types"]:
-                    categories["device_types"][device] = 0
-                categories["device_types"][device] += count
 
         # Create HTML for the statistics
         style = """
