@@ -370,6 +370,29 @@ class AccessLog(models.Model):
         if ip in excluded_ips:
             return None
 
+        # Get and process the user agent string early for bot exclusion
+        user_agent_string = request.META.get("HTTP_USER_AGENT", "")
+        user_agent_obj = None
+        if user_agent_string:
+            user_agent_obj = LogUserAgent.from_user_agent_string(user_agent_string)
+
+        # Exclude bots if configured
+        exclude_bots = getattr(settings, "AUDIT_LOG_EXCLUDE_BOTS", False)
+        if exclude_bots and user_agent_obj and user_agent_obj.is_bot:
+            return None
+
+        # Enhanced URL exclusion: only exclude if status code is 200 (if response is present)
+        excluded_url_patterns = getattr(settings, "AUDIT_LOG_EXCLUDED_URLS", [])
+        path = request.path
+        for pattern in excluded_url_patterns:
+            if re.match(pattern, path):
+                if response is not None and hasattr(response, "status_code"):
+                    if response.status_code == 200:
+                        return None
+                elif response is None:
+                    # If no response, keep old behavior (exclude unconditionally)
+                    return None
+
         # Check if we should log this request based on sampling settings
         sampling_info = cls._check_sampling(request)
         if not sampling_info.should_log:
@@ -400,12 +423,6 @@ class AccessLog(models.Model):
             if post:
                 data["post"] = post
             return data
-
-        # Get and process the user agent string
-        user_agent_string = request.META.get("HTTP_USER_AGENT", "")
-        user_agent_obj = None
-        if user_agent_string:
-            user_agent_obj = LogUserAgent.from_user_agent_string(user_agent_string)
 
         try:
             return cls.objects.create(
@@ -446,6 +463,18 @@ class AccessLog(models.Model):
         Returns:
             SamplingResult: Named tuple containing sampling information
         """
+        # Exclude by URL pattern before any sampling logic
+        excluded_url_patterns = getattr(settings, "AUDIT_LOG_EXCLUDED_URLS", [])
+        path = request.path
+        for pattern in excluded_url_patterns:
+            if re.match(pattern, path):
+                return cls.SamplingResult(
+                    should_log=False,
+                    in_always_log_urls=False,
+                    in_sample_urls=False,
+                    sample_rate=getattr(settings, "AUDIT_LOG_SAMPLE_RATE", 1.0),
+                )
+
         # Get settings with defaults
         sample_rate = getattr(settings, "AUDIT_LOG_SAMPLE_RATE", 1.0)
         always_log_urls = getattr(settings, "AUDIT_LOG_ALWAYS_LOG_URLS", [])
