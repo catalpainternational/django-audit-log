@@ -6,19 +6,25 @@ class UserAgentUtil:
 
     # Samsung device model mapping
     SAMSUNG_DEVICE_MODELS = {
-        'gta4ljt': 'Galaxy Tab A4 Lite',
-        'gta8xx': 'Galaxy Tab A8',
-        'gta9pxxx': 'Galaxy Tab A9+',
-        'gtanotexlltedx': 'Galaxy Note 10.1',
-        'gtaxlltexx': 'Galaxy Tab A 10.1',
-        'gts210ltedx': 'Galaxy Tab S2 9.7 LTE',
-        'gts210ltexx': 'Galaxy Tab S2 9.7 LTE',
+        "gta4ljt": "Galaxy Tab A4 Lite",
+        "gta8xx": "Galaxy Tab A8",
+        "gta9pxxx": "Galaxy Tab A9+",
+        "gtanotexlltedx": "Galaxy Note 10.1",
+        "gtaxlltexx": "Galaxy Tab A 10.1",
+        "gts210ltedx": "Galaxy Tab S2 9.7 LTE",
+        "gts210ltexx": "Galaxy Tab S2 9.7 LTE",
     }
 
     # Browser pattern regex
     BROWSER_PATTERNS = [
-        (r"tl\.eskola\.eskola_app-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Non-playstore format
-        (r"tl\.eskola\.eskola_app\.playstore-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Playstore format
+        (
+            r"tl\.eskola\.eskola_app-(\d+\.\d+\.\d+)-release(?:/(\w+))?",
+            "Eskola APK",
+        ),  # Non-playstore format
+        (
+            r"tl\.eskola\.eskola_app\.playstore-(\d+\.\d+\.\d+)-release(?:/(\w+))?",
+            "Eskola APK",
+        ),  # Playstore format
         (r"Chrome/(\d+)", "Chrome"),
         (r"Firefox/(\d+)", "Firefox"),
         (r"Safari/(\d+)", "Safari"),
@@ -78,7 +84,9 @@ class UserAgentUtil:
     @classmethod
     def get_device_model_name(cls, device_code):
         """Get the human-readable device name from a Samsung device code."""
-        return cls.SAMSUNG_DEVICE_MODELS.get(device_code, f"Unknown Samsung Device ({device_code})")
+        return cls.SAMSUNG_DEVICE_MODELS.get(
+            device_code, f"Unknown Samsung Device ({device_code})"
+        )
 
     @classmethod
     def normalize_user_agent(cls, user_agent):
@@ -113,7 +121,10 @@ class UserAgentUtil:
         }
 
         # Special case for Eskola APK (both formats)
-        eskola_match = re.search(r"tl\.eskola\.eskola_app(?:\.playstore)?-(\d+\.\d+\.\d+)-release(?:/(\w+))?", user_agent)
+        eskola_match = re.search(
+            r"tl\.eskola\.eskola_app(?:\.playstore)?-(\d+\.\d+\.\d+)-release(?:/(\w+))?",
+            user_agent,
+        )
         if eskola_match:
             result["browser"] = "Eskola APK"
             result["browser_version"] = eskola_match.group(1)
@@ -219,4 +230,4 @@ class UserAgentUtil:
             if info["is_bot"]:
                 categories["bots"] += count
 
-        return categories 
+        return categories

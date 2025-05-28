@@ -90,15 +90,15 @@ rule: Include metrics when relevant (e.g., "375 deletions, 239 insertions").
 rule: Example multi-line structure:
   ```
   refactor: eliminate UserAgentUtil code duplication
-  
+
   Create dedicated user_agent_utils.py module to consolidate UserAgentUtil
   functionality that was duplicated between models.py and admin.py.
-  
+
   Changes:
   - Create new src/django_audit_log/user_agent_utils.py module
   - Remove duplicate UserAgentUtil class from models.py
   - Update imports across all affected modules
-  
+
   Benefits:
   - Single source of truth for user agent parsing logic
   - Easier maintenance and updates
@@ -108,4 +108,4 @@ rule: Example multi-line structure:
 # 15. Code Review and CI
 rule: All code must be reviewed and pass CI checks before merging.
 
-# Reference: https://www.cursorrules.org/article/python-django-best-practices-cursorrules-prompt-fi?utm_source=cursorrules.org 
+# Reference: https://www.cursorrules.org/article/python-django-best-practices-cursorrules-prompt-fi?utm_source=cursorrules.org

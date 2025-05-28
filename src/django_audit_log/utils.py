@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.db.models import Count
+
 from .models import AccessLog, LogUserAgent
 
 
@@ -40,7 +41,7 @@ def migrate_user_agents(batch_size=1000):
         batch = distinct_user_agents[i : i + batch_size]
 
         # Create normalized user agents for this batch
-        for ua_string, count in batch:
+        for ua_string, _count in batch:
             # Skip empty strings
             if not ua_string:
                 continue

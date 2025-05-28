@@ -1,4 +1,3 @@
-import re
 from datetime import timedelta
 
 from django.contrib import admin
@@ -9,12 +8,13 @@ from django.utils import timezone
 from django.utils.html import mark_safe
 
 from django_audit_log.user_agent_utils import UserAgentUtil
+
 from .models import (
     AccessLog,
+    LogIpAddress,
     LogPath,
     LogSessionKey,
     LogUser,
-    LogIpAddress,
     LogUserAgent,
 )
 
@@ -66,15 +66,15 @@ class BrowserTypeFilter(SimpleListFilter):
         value = self.value()
 
         if value == "chrome":
-            return queryset.filter(
-                user_agent_normalized__browser="Chrome"
-            ).exclude(user_agent_normalized__browser="Chromium")
+            return queryset.filter(user_agent_normalized__browser="Chrome").exclude(
+                user_agent_normalized__browser="Chromium"
+            )
         elif value == "firefox":
             return queryset.filter(user_agent_normalized__browser="Firefox")
         elif value == "safari":
-            return queryset.filter(
-                user_agent_normalized__browser="Safari"
-            ).exclude(user_agent_normalized__browser="Chrome")
+            return queryset.filter(user_agent_normalized__browser="Safari").exclude(
+                user_agent_normalized__browser="Chrome"
+            )
         elif value == "edge":
             return queryset.filter(user_agent_normalized__browser="Edge")
         elif value == "ie":
@@ -197,7 +197,7 @@ class AccessLogAdmin(ReadOnlyAdmin):
             .ua-browser {{ color: #0066cc; }}
             .ua-os {{ color: #28a745; }}
             .ua-device {{ color: #fd7e14; }}
-            .ua-raw {{ margin-top: 15px; font-family: monospace; font-size: 12px; 
+            .ua-raw {{ margin-top: 15px; font-family: monospace; font-size: 12px;
                       padding: 10px; background-color: #f8f9fa; border-radius: 4px; word-break: break-all; }}
         </style>
         <div class="ua-info">
@@ -413,9 +413,9 @@ class AccessLogAdmin(ReadOnlyAdmin):
         html.append(
             f"""
             <div style="margin-top: 15px; font-size: 13px;">
-                <p>Based on {categories['total']} requests • 
-                Bot/Crawler traffic: {bot_percentage:.1f}% • 
-                Top browser: {top_browser} ({top_browser_pct:.1f}%) • 
+                <p>Based on {categories['total']} requests •
+                Bot/Crawler traffic: {bot_percentage:.1f}% •
+                Top browser: {top_browser} ({top_browser_pct:.1f}%) •
                 Top OS: {top_os} ({top_os_pct:.1f}%)</p>
             </div>
         """
@@ -529,7 +529,7 @@ class LogUserAdmin(ReadOnlyAdmin):
         "url_access_stats",
         "recent_activity",
         "user_agent_stats",
-        "distinct_user_agents"
+        "distinct_user_agents",
     )
 
     # Set up the list_filter with conditional DateRangeFilter if available
@@ -854,16 +854,16 @@ class LogUserAdmin(ReadOnlyAdmin):
             AccessLog.objects.filter(user=obj)
             .exclude(user_agent_normalized__isnull=True)
             .values(
-                'user_agent_normalized__user_agent',
-                'user_agent_normalized__browser',
-                'user_agent_normalized__browser_version',
-                'user_agent_normalized__operating_system',
-                'user_agent_normalized__operating_system_version',
-                'user_agent_normalized__device_type',
-                'user_agent_normalized__is_bot'
+                "user_agent_normalized__user_agent",
+                "user_agent_normalized__browser",
+                "user_agent_normalized__browser_version",
+                "user_agent_normalized__operating_system",
+                "user_agent_normalized__operating_system_version",
+                "user_agent_normalized__device_type",
+                "user_agent_normalized__is_bot",
             )
-            .annotate(count=Count('user_agent_normalized'))
-            .order_by('-count')
+            .annotate(count=Count("user_agent_normalized"))
+            .order_by("-count")
         )
 
         if not user_agents:
@@ -912,24 +912,30 @@ class LogUserAdmin(ReadOnlyAdmin):
 
         html = [
             style,
-            '''<table class="ua-list">
+            """<table class="ua-list">
                 <tr>
                     <th>Browser</th>
                     <th>Operating System</th>
                     <th>Device Type</th>
                     <th>Usage Count</th>
                     <th>Raw User Agent</th>
-                </tr>'''
+                </tr>""",
         ]
 
         for agent in user_agents:
             browser = f"{agent['user_agent_normalized__browser']} {agent['user_agent_normalized__browser_version'] or ''}"
-            os_version = f" {agent['user_agent_normalized__operating_system_version']}" if agent['user_agent_normalized__operating_system_version'] else ""
+            os_version = (
+                f" {agent['user_agent_normalized__operating_system_version']}"
+                if agent["user_agent_normalized__operating_system_version"]
+                else ""
+            )
             os = f"{agent['user_agent_normalized__operating_system']}{os_version}"
-            
-            bot_class = ' class="ua-bot"' if agent['user_agent_normalized__is_bot'] else ''
-            
-            html.append(f'''
+
+            bot_class = (
+                ' class="ua-bot"' if agent["user_agent_normalized__is_bot"] else ""
+            )
+
+            html.append(f"""
                 <tr{bot_class}>
                     <td>{browser}</td>
                     <td>{os}</td>
@@ -939,11 +945,11 @@ class LogUserAdmin(ReadOnlyAdmin):
                         <div class="ua-raw">{agent['user_agent_normalized__user_agent']}</div>
                     </td>
                 </tr>
-            ''')
+            """)
 
-        html.append('</table>')
-        
-        return mark_safe(''.join(html))
+        html.append("</table>")
+
+        return mark_safe("".join(html))
 
     distinct_user_agents.short_description = "Distinct User Agents"
 
@@ -1092,7 +1098,13 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         "usage_count",
         "unique_users_count",
     )
-    list_filter = ("browser", "operating_system", "device_type", "is_bot", "operating_system_version",)
+    list_filter = (
+        "browser",
+        "operating_system",
+        "device_type",
+        "is_bot",
+        "operating_system_version",
+    )
     search_fields = ("user_agent", "browser", "operating_system")
     readonly_fields = (
         "user_agent",
@@ -1103,7 +1115,7 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         "device_type",
         "is_bot",
         "usage_details",
-        "related_users"
+        "related_users",
     )
 
     def get_queryset(self, request):
@@ -1114,19 +1126,20 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
             # Add semantic version ordering
             version_as_int=models.Case(
                 models.When(
-                    operating_system_version__regex=r'^\d+$',
-                    then=Cast('operating_system_version', models.IntegerField())
+                    operating_system_version__regex=r"^\d+$",
+                    then=Cast("operating_system_version", models.IntegerField()),
                 ),
                 default=0,
                 output_field=models.IntegerField(),
-            )
-        ).order_by('operating_system', '-version_as_int', 'operating_system_version')
+            ),
+        ).order_by("operating_system", "-version_as_int", "operating_system_version")
         return qs
 
     def operating_system_version(self, obj):
         """Display the operating system version with semantic ordering."""
         return obj.operating_system_version
-    operating_system_version.admin_order_field = 'version_as_int'
+
+    operating_system_version.admin_order_field = "version_as_int"
     operating_system_version.short_description = "OS Version"
 
     def usage_count(self, obj):
@@ -1227,12 +1240,9 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         # Get users who have used this user agent with their usage counts
         users = (
             AccessLog.objects.filter(user_agent_normalized=obj)
-            .values('user__id', 'user__user_name')
-            .annotate(
-                usage_count=Count('id'),
-                last_used=models.Max('timestamp')
-            )
-            .order_by('-usage_count')
+            .values("user__id", "user__user_name")
+            .annotate(usage_count=Count("id"), last_used=models.Max("timestamp"))
+            .order_by("-usage_count")
         )
 
         if not users:
@@ -1282,34 +1292,36 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
 
         html = [
             style,
-            '''<table class="user-list">
+            """<table class="user-list">
                 <tr>
                     <th>User</th>
                     <th>Usage Count</th>
                     <th>Last Used</th>
-                </tr>'''
+                </tr>""",
         ]
 
         for user in users:
             # Create a link to the user's admin page
-            user_url = reverse('admin:django_audit_log_loguser_change', args=[user['user__id']])
+            user_url = reverse(
+                "admin:django_audit_log_loguser_change", args=[user["user__id"]]
+            )
             user_link = format_html(
                 '<a class="user-link" href="{}">{}</a>',
                 user_url,
-                user['user__user_name']
+                user["user__user_name"],
             )
-            
-            html.append(f'''
+
+            html.append(f"""
                 <tr>
                     <td>{user_link}</td>
                     <td class="user-count">{user['usage_count']}</td>
                     <td class="last-used">{user['last_used'].strftime('%Y-%m-%d %H:%M:%S')}</td>
                 </tr>
-            ''')
+            """)
 
-        html.append('</table>')
-        
-        return mark_safe(''.join(html))
+        html.append("</table>")
+
+        return mark_safe("".join(html))
 
     related_users.short_description = "Users of this User Agent"
 

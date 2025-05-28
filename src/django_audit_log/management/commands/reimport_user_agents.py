@@ -1,4 +1,5 @@
 from django.core.management.base import BaseCommand
+
 from django_audit_log.models import LogUserAgent
 
 
@@ -15,11 +16,11 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         batch_size = options["batch_size"]
-        
+
         self.stdout.write("Starting user agent reimport...")
-        
+
         results = LogUserAgent.reimport_all(batch_size=batch_size)
-        
+
         self.stdout.write(
             self.style.SUCCESS(
                 f"\nReimport completed:\n"
@@ -27,4 +28,4 @@ class Command(BaseCommand):
                 f"- Agents updated: {results['updated']}\n"
                 f"- Agents unchanged: {results['total_agents'] - results['updated']}"
             )
-        ) 
+        )

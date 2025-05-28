@@ -4,10 +4,10 @@ This is mostly taken from the request
 and intended to be used with the "AccessLogMixin"
 """
 
-from typing import Dict, Optional, Any, NamedTuple
-from urllib.parse import urlparse
 import random
 import re
+from typing import Any, NamedTuple, Optional
+from urllib.parse import urlparse
 
 # Django imports
 from django.conf import settings
@@ -56,7 +56,7 @@ class LogPath(models.Model):
 
         # Parse the URL
         parsed = urlparse(url)
-        
+
         # If it's already just a path (no scheme/netloc), return it cleaned
         if not parsed.scheme and not parsed.netloc:
             return parsed.path
@@ -103,7 +103,7 @@ class LogPath(models.Model):
             return cls.objects.filter(path=cls.normalize_path(referrer)).first()
 
     @classmethod
-    def from_response(cls, response: Optional[HttpResponse]) -> Optional["LogPath"]:
+    def from_response(cls, response: HttpResponse | None) -> Optional["LogPath"]:
         """
         Create or get a LogPath instance from a response URL.
 
@@ -348,7 +348,7 @@ class AccessLog(models.Model):
 
     @classmethod
     def from_request(
-        cls, request: HttpRequest, response: Optional[HttpResponse] = None
+        cls, request: HttpRequest, response: HttpResponse | None = None
     ) -> Optional["AccessLog"]:
         """
         Create an access log entry from a request and optional response.
@@ -364,7 +364,9 @@ class AccessLog(models.Model):
         excluded_ips = getattr(settings, "AUDIT_LOG_EXCLUDED_IPS", ["127.0.0.1"])
 
         # Check if the request IP is excluded
-        ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() or request.META.get("REMOTE_ADDR")
+        ip = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[
+            0
+        ].strip() or request.META.get("REMOTE_ADDR")
         if ip in excluded_ips:
             return None
 
@@ -373,7 +375,7 @@ class AccessLog(models.Model):
         if not sampling_info.should_log:
             return None
 
-        def get_data() -> Dict[str, Any]:
+        def get_data() -> dict[str, Any]:
             """
             Extract cleaned GET and POST data,
             excluding "sensitive" fields
@@ -522,10 +524,15 @@ class LogUserAgent(models.Model):
         max_length=256, null=True, blank=True, editable=False
     )
     operating_system_version = models.CharField(
-        max_length=256, null=True, blank=True, editable=False,
-        help_text="Version of the operating system if available"
+        max_length=256,
+        null=True,
+        blank=True,
+        editable=False,
+        help_text="Version of the operating system if available",
     )
-    device_type = models.CharField(max_length=256, null=True, blank=True, editable=False)
+    device_type = models.CharField(
+        max_length=256, null=True, blank=True, editable=False
+    )
     is_bot = models.BooleanField(default=False, editable=False)
 
     class Meta:
@@ -551,6 +558,7 @@ class LogUserAgent(models.Model):
             dict: Summary of reimport results
         """
         from django.db import transaction
+
         from django_audit_log.user_agent_utils import UserAgentUtil
 
         # Get all distinct user agents
@@ -562,25 +570,25 @@ class LogUserAgent(models.Model):
 
         # Process in batches to avoid memory issues
         for i in range(0, total_agents, batch_size):
-            batch = cls.objects.all()[i:i + batch_size]
-            
+            batch = cls.objects.all()[i : i + batch_size]
+
             with transaction.atomic():
                 for agent in batch:
                     processed += 1
-                    
+
                     # Parse with current logic
                     info = UserAgentUtil.normalize_user_agent(agent.user_agent)
-                    
+
                     # Check if any fields would be updated
                     needs_update = (
-                        agent.browser != info["browser"] or
-                        agent.browser_version != info["browser_version"] or
-                        agent.operating_system != info["os"] or
-                        agent.operating_system_version != info["os_version"] or
-                        agent.device_type != info["device_type"] or
-                        agent.is_bot != info["is_bot"]
+                        agent.browser != info["browser"]
+                        or agent.browser_version != info["browser_version"]
+                        or agent.operating_system != info["os"]
+                        or agent.operating_system_version != info["os_version"]
+                        or agent.device_type != info["device_type"]
+                        or agent.is_bot != info["is_bot"]
                     )
-                    
+
                     if needs_update:
                         agent.browser = info["browser"]
                         agent.browser_version = info["browser_version"]
@@ -592,7 +600,9 @@ class LogUserAgent(models.Model):
                         updated += 1
 
             if processed % batch_size == 0 or processed == total_agents:
-                print(f"Processed {processed}/{total_agents} user agents, updated {updated}")
+                print(
+                    f"Processed {processed}/{total_agents} user agents, updated {updated}"
+                )
 
         return {
             "total_agents": total_agents,
@@ -644,5 +654,7 @@ class LogUserAgent(models.Model):
                 )
 
     def __str__(self):
-        os_version = f" {self.operating_system_version}" if self.operating_system_version else ""
+        os_version = (
+            f" {self.operating_system_version}" if self.operating_system_version else ""
+        )
         return f"{self.browser} {self.browser_version or ''} on {self.operating_system}{os_version} ({self.device_type})"

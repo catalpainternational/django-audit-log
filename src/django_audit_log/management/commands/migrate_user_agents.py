@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django_audit_log.utils import migrate_user_agents, get_user_agent_statistics
+
+from django_audit_log.utils import get_user_agent_statistics, migrate_user_agents
 
 
 class Command(BaseCommand):

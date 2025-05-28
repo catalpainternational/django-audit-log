@@ -21,6 +21,7 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "testproject.settings"
 python_files = "tests.py test_*.py"
+pythonpath = ["testproject"]
 
 [dependency-groups]
 dev = [
@@ -28,4 +29,6 @@ dev = [
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
     "pytest-django>=4.11.1",
+    "pre-commit>=4.0.0",
+    "ruff>=0.8.0",
 ]
