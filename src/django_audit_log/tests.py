@@ -1,13 +1,11 @@
 import pytest
 from django.urls import reverse
-from django.contrib.auth import get_user_model
 from django.contrib.admin.sites import site
 import factory
-from .models import LogUser, AccessLog, LogPath, LogSessionKey, LogIpAddress, LogUserAgent, UserAgentUtil
+from .models import LogUser, AccessLog, LogPath, LogSessionKey, LogIpAddress, LogUserAgent
+from .user_agent_utils import UserAgentUtil
 import types
-from django.http import HttpRequest, HttpResponse
-from django.contrib.auth.models import AnonymousUser
-from django.test import RequestFactory
+from django.http import HttpRequest
 from django_audit_log import admin as audit_admin
 from django.contrib import admin
 

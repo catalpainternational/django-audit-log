@@ -14,8 +14,6 @@ from django.conf import settings
 from django.db import models
 from django.http.request import HttpRequest
 from django.http.response import HttpResponse
-from django.urls import Resolver404, resolve
-from django.urls.resolvers import ResolverMatch
 
 # Third-party imports (if any)
 try:
@@ -553,7 +551,7 @@ class LogUserAgent(models.Model):
             dict: Summary of reimport results
         """
         from django.db import transaction
-        from django.db.models import Count
+        from django_audit_log.user_agent_utils import UserAgentUtil
 
         # Get all distinct user agents
         total_agents = cls.objects.count()
@@ -623,7 +621,7 @@ class LogUserAgent(models.Model):
         except cls.DoesNotExist:
             # Parse user agent
             try:
-                from django_audit_log.admin import UserAgentUtil
+                from django_audit_log.user_agent_utils import UserAgentUtil
 
                 info = UserAgentUtil.normalize_user_agent(user_agent_string)
 
@@ -648,156 +646,3 @@ class LogUserAgent(models.Model):
     def __str__(self):
         os_version = f" {self.operating_system_version}" if self.operating_system_version else ""
         return f"{self.browser} {self.browser_version or ''} on {self.operating_system}{os_version} ({self.device_type})"
-
-
-class UserAgentUtil:
-    """Utility class for parsing and normalizing user agents."""
-
-    # Browser pattern regex
-    BROWSER_PATTERNS = [
-        (r"tl\.eskola\.eskola_app-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Non-playstore format
-        (r"tl\.eskola\.eskola_app\.playstore-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Playstore format
-        (r"Chrome/(\d+)", "Chrome"),
-        (r"Firefox/(\d+)", "Firefox"),
-        (r"Safari/(\d+)", "Safari"),
-        (r"Edge/(\d+)", "Edge"),
-        (r"Edg/(\d+)", "Edge"),  # New Edge based on Chromium
-        (r"MSIE\s(\d+)", "Internet Explorer"),
-        (r"Trident/.*rv:(\d+)", "Internet Explorer"),
-        (r"OPR/(\d+)", "Opera"),
-        (r"Opera/(\d+)", "Opera"),
-        (r"UCBrowser/(\d+)", "UC Browser"),
-        (r"SamsungBrowser/(\d+)", "Samsung Browser"),
-        (r"YaBrowser/(\d+)", "Yandex Browser"),
-        (r"HeadlessChrome", "Headless Chrome"),
-        (r"Googlebot", "Googlebot"),
-        (r"bingbot", "Bingbot"),
-        (r"DuckDuckBot", "DuckDuckBot"),
-        (r"Dalvik/(\d+)", "Dalvik"),  # Android Runtime Environment
-    ]
-
-    # OS pattern regex
-    OS_PATTERNS = [
-        (r"Windows NT 10\.0", "Windows 10"),
-        (r"Windows NT 6\.3", "Windows 8.1"),
-        (r"Windows NT 6\.2", "Windows 8"),
-        (r"Windows NT 6\.1", "Windows 7"),
-        (r"Windows NT 6\.0", "Windows Vista"),
-        (r"Windows NT 5\.1", "Windows XP"),
-        (r"Windows NT 5\.0", "Windows 2000"),
-        (r"Macintosh.*Mac OS X", "macOS"),
-        (r"Android\s+(\d+)", "Android"),  # Captures Android version
-        (r"Linux", "Linux"),
-        (r"iPhone.*OS\s+(\d+)", "iOS"),
-        (r"iPad.*OS\s+(\d+)", "iOS"),
-        (r"iPod.*OS\s+(\d+)", "iOS"),
-        (r"CrOS", "Chrome OS"),
-    ]
-
-    # Device type patterns
-    DEVICE_PATTERNS = [
-        (r"iPhone", "Mobile"),
-        (r"iPod", "Mobile"),
-        (r"iPad", "Tablet"),
-        (r"Android.*Mobile", "Mobile"),
-        (r"Android(?!.*Mobile)", "Tablet"),
-        (r"Mobile", "Mobile"),
-        (r"Tablet", "Tablet"),
-    ]
-
-    # Bot/crawler patterns
-    BOT_PATTERNS = [
-        (r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu|DigitalOcean|Palo Alto Networks|Expanse", "Bot/Crawler"),
-    ]
-
-    @classmethod
-    def normalize_user_agent(cls, user_agent):
-        """
-        Normalize a user agent string to categorize browsers, OS, and device types.
-
-        Args:
-            user_agent: The raw user agent string
-
-        Returns:
-            dict: Containing browser, browser_version, os, device_type, is_bot
-        """
-        if not user_agent:
-            return {
-                "browser": "Unknown",
-                "browser_version": None,
-                "os": "Unknown",
-                "os_version": None,
-                "device_type": "Unknown",
-                "is_bot": False,
-                "raw": user_agent,
-            }
-
-        result = {
-            "browser": "Unknown",
-            "browser_version": None,
-            "os": "Unknown",
-            "os_version": None,
-            "device_type": "Mobile",  # Default to Mobile for Eskola APK
-            "is_bot": False,
-            "raw": user_agent,
-        }
-
-        # Special case for Eskola APK (both formats)
-        eskola_match = re.search(r"tl\.eskola\.eskola_app(?:\.playstore)?-(\d+\.\d+\.\d+)-release(?:/(\w+))?", user_agent)
-        if eskola_match:
-            result["browser"] = "Eskola APK"
-            result["browser_version"] = eskola_match.group(1)
-            result["os"] = "Android"
-            # Try to extract device model if present
-            if eskola_match.group(2):
-                result["os_version"] = f"Device: {eskola_match.group(2)}"
-            return result
-
-        # Check if it's a bot
-        for pattern, _ in cls.BOT_PATTERNS:
-            if re.search(pattern, user_agent, re.IGNORECASE):
-                result["is_bot"] = True
-                result["browser"] = "Bot/Crawler"
-                result["device_type"] = "Bot"
-                break
-
-        # Detect browser and version
-        for pattern, browser in cls.BROWSER_PATTERNS:
-            match = re.search(pattern, user_agent)
-            if match:
-                result["browser"] = browser
-                # Get version if available
-                if len(match.groups()) > 0 and match.group(1).isdigit():
-                    result["browser_version"] = match.group(1)
-                break
-
-        # Special case for Dalvik (Android) user agents
-        if "Dalvik" in user_agent:
-            result["os"] = "Android"
-            # Try to extract Android version
-            android_match = re.search(r"Android\s+(\d+(?:\.\d+)*)", user_agent)
-            if android_match:
-                result["os_version"] = android_match.group(1)
-
-        # Detect OS and version for other cases
-        if result["os"] == "Unknown":  # Only if not already set by Dalvik check
-            for pattern, os in cls.OS_PATTERNS:
-                match = re.search(pattern, user_agent)
-                if match:
-                    result["os"] = os
-                    # Extract version if available
-                    if len(match.groups()) > 0:
-                        result["os_version"] = match.group(1)
-                    # Special case for Windows 10
-                    if os == "Windows 10":
-                        result["os_version"] = "10"
-                    break
-
-        # Detect device type (only if not already a bot)
-        if not result["is_bot"]:
-            for pattern, device in cls.DEVICE_PATTERNS:
-                if re.search(pattern, user_agent, re.IGNORECASE):
-                    result["device_type"] = device
-                    break
-
-        return result

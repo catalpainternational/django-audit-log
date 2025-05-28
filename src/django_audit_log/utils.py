@@ -15,7 +15,7 @@ def migrate_user_agents(batch_size=1000):
         dict: Summary of migration results
     """
     # Import UserAgentUtil here to avoid circular import
-    from .admin import UserAgentUtil
+    from .user_agent_utils import UserAgentUtil
 
     # Get all distinct user agents that haven't been normalized yet
     distinct_user_agents = (
