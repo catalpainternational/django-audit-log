@@ -38,12 +38,20 @@ repos:
         pass_filenames: false
         files: \.(py)$
 
-  # Run tests (only on pre-push)
+      # Run pytest on every commit for fast feedback
+      - id: pytest-fast
+        name: Run pytest (fast)
+        entry: uv run pytest -x --tb=short
+        language: system
+        pass_filenames: false
+        files: \.(py)$
+
+  # Run full test suite on pre-push
   - repo: local
     hooks:
-      - id: pytest
-        name: Run tests
-        entry: uv run pytest
+      - id: pytest-full
+        name: Run full test suite
+        entry: uv run pytest -v --tb=short
         language: system
         pass_filenames: false
         files: \.(py)$
