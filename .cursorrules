@@ -59,7 +59,19 @@ rule: Use `uv` for all environment actions.
 rule: Do not use pip or poetry for environment management; use `uv` exclusively.
 rule: All dependencies must be declared in pyproject.toml and locked with uv.
 
-# 14. Code Review and CI
+# 14. Git Commits
+rule: Follow Conventional Commits specification (https://www.conventionalcommits.org/en/v1.0.0/).
+rule: Use commit message format: `<type>[optional scope]: <description>`.
+rule: Common types: feat (new feature), fix (bug fix), docs (documentation), style (formatting), refactor (code restructuring), test (adding tests), chore (maintenance).
+rule: Use BREAKING CHANGE footer or ! after type/scope for breaking changes.
+rule: Keep commit messages concise but descriptive; use body for additional context when needed.
+rule: Examples:
+  - `feat(auth): add user authentication middleware`
+  - `fix: resolve user agent parsing for mobile devices`
+  - `docs: update API documentation for new endpoints`
+  - `refactor!: restructure user agent utility classes`
+
+# 15. Code Review and CI
 rule: All code must be reviewed and pass CI checks before merging.
 
 # Reference: https://www.cursorrules.org/article/python-django-best-practices-cursorrules-prompt-fi?utm_source=cursorrules.org 
