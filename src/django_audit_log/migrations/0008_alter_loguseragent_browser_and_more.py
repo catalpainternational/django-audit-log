@@ -4,35 +4,48 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('django_audit_log', '0007_merge_duplicate_paths'),
+        ("django_audit_log", "0007_merge_duplicate_paths"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='loguseragent',
-            name='browser',
-            field=models.CharField(blank=True, editable=False, max_length=256, null=True),
+            model_name="loguseragent",
+            name="browser",
+            field=models.CharField(
+                blank=True, editable=False, max_length=256, null=True
+            ),
         ),
         migrations.AlterField(
-            model_name='loguseragent',
-            name='browser_version',
-            field=models.CharField(blank=True, editable=False, max_length=256, null=True),
+            model_name="loguseragent",
+            name="browser_version",
+            field=models.CharField(
+                blank=True, editable=False, max_length=256, null=True
+            ),
         ),
         migrations.AlterField(
-            model_name='loguseragent',
-            name='device_type',
-            field=models.CharField(blank=True, editable=False, max_length=256, null=True),
+            model_name="loguseragent",
+            name="device_type",
+            field=models.CharField(
+                blank=True, editable=False, max_length=256, null=True
+            ),
         ),
         migrations.AlterField(
-            model_name='loguseragent',
-            name='operating_system',
-            field=models.CharField(blank=True, editable=False, max_length=256, null=True),
+            model_name="loguseragent",
+            name="operating_system",
+            field=models.CharField(
+                blank=True, editable=False, max_length=256, null=True
+            ),
         ),
         migrations.AlterField(
-            model_name='loguseragent',
-            name='operating_system_version',
-            field=models.CharField(blank=True, editable=False, help_text='Version of the operating system if available', max_length=256, null=True),
+            model_name="loguseragent",
+            name="operating_system_version",
+            field=models.CharField(
+                blank=True,
+                editable=False,
+                help_text="Version of the operating system if available",
+                max_length=256,
+                null=True,
+            ),
         ),
     ]

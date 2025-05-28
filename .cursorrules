@@ -1,0 +1,111 @@
+# .cursorrules
+# Django Audit Log Project - Cursor AI Rules
+
+# 1. Code Style and Readability
+rule: Enforce PEP 8 and Django coding style for all Python code using ruff or flake8.
+rule: Use descriptive variable, function, and class names (snake_case for functions/variables, PascalCase for classes).
+rule: Use ruff for linting and formatting; code must pass lint checks before merging.
+
+# 2. Project Structure
+rule: Organize code into Django apps for modularity and separation of concerns.
+rule: Keep business logic in models and forms; keep views light and focused on request handling.
+
+# 3. Django ORM and Database
+rule: Use Django ORM for all database interactions; avoid raw SQL unless necessary for performance.
+rule: Use select_related and prefetch_related for query optimization when accessing related objects.
+rule: Add database indexes for frequently queried fields.
+rule: All model changes must be accompanied by a migration file.
+rule: Migration files should be reviewed for accuracy and minimalism.
+
+# 4. Views and Forms
+rule: Use Class-Based Views (CBVs) for complex views and Function-Based Views (FBVs) for simple logic.
+rule: Use Django's form and model form classes for form handling and validation.
+
+# 5. Middleware
+rule: Use middleware for cross-cutting concerns such as logging, authentication, and caching.
+
+# 6. Error Handling and Validation
+rule: Implement error handling at the view level using Django's built-in mechanisms.
+rule: Use Django's validation framework for form and model data.
+rule: Prefer try-except blocks for handling exceptions in business logic and views.
+rule: Customize error pages (404, 500) for better user experience.
+
+# 7. Security
+rule: Apply Django's security best practices (CSRF protection, SQL injection protection, XSS prevention).
+rule: Run Django's security checks (`python manage.py check --deploy`) before deployment.
+rule: Regularly review and update dependencies to address security vulnerabilities.
+
+# 8. Testing
+rule: Use pytest-django for all new features and bug fixes.
+rule: Require tests for all new features and bug fixes before merging.
+rule: Ensure test coverage does not decrease.
+
+# 9. Templates and Serializers
+rule: Use Django templates for rendering HTML and DRF serializers for JSON responses.
+
+# 10. Caching and Performance
+rule: Use Django's caching framework (e.g., Redis, Memcached) for frequently accessed data.
+rule: Optimize static file handling using Django's static file management system or CDN integration.
+
+# 11. Management Commands
+rule: Implement custom management commands for batch operations and data migrations as needed.
+
+# 12. Documentation
+rule: Document all public classes, methods, and functions with docstrings.
+rule: Update README.md or relevant documentation for all new features.
+
+# 13. Environment
+rule: Use `uv` for all environment actions.
+rule: Do not use pip or poetry for environment management; use `uv` exclusively.
+rule: All dependencies must be declared in pyproject.toml and locked with uv.
+
+# 14. Git Commits
+rule: Follow Conventional Commits specification (https://www.conventionalcommits.org/en/v1.0.0/).
+rule: Use commit message format: `<type>[optional scope]: <description>`.
+rule: Common types: feat (new feature), fix (bug fix), docs (documentation), style (formatting), refactor (code restructuring), test (adding tests), chore (maintenance).
+rule: Use BREAKING CHANGE footer or ! after type/scope for breaking changes.
+rule: Keep commit messages concise but descriptive; use body for additional context when needed.
+rule: Examples:
+  - `feat(auth): add user authentication middleware`
+  - `fix: resolve user agent parsing for mobile devices`
+  - `docs: update API documentation for new endpoints`
+  - `refactor!: restructure user agent utility classes`
+
+## Commit Message Writing Procedure:
+rule: For complex changes, use multi-line commit messages with proper structure.
+rule: Create commit message file: `cat > /tmp/commit_msg.txt << 'EOF'` then write message, then `EOF`.
+rule: Use `git commit -F /tmp/commit_msg.txt` to apply multi-line message from file.
+rule: Multi-line format structure:
+  1. Subject line (50 chars max): `<type>[scope]: <description>`
+  2. Blank line
+  3. Body paragraph explaining what and why
+  4. Blank line
+  5. "Changes:" section with bullet points of specific modifications
+  6. Blank line
+  7. "Benefits:" section explaining value/improvements gained
+rule: Subject line should be imperative mood (e.g., "add", "fix", "refactor").
+rule: Body should explain the motivation and contrast with previous behavior.
+rule: Use bullet points for clarity in Changes and Benefits sections.
+rule: Include metrics when relevant (e.g., "375 deletions, 239 insertions").
+rule: Example multi-line structure:
+  ```
+  refactor: eliminate UserAgentUtil code duplication
+
+  Create dedicated user_agent_utils.py module to consolidate UserAgentUtil
+  functionality that was duplicated between models.py and admin.py.
+
+  Changes:
+  - Create new src/django_audit_log/user_agent_utils.py module
+  - Remove duplicate UserAgentUtil class from models.py
+  - Update imports across all affected modules
+
+  Benefits:
+  - Single source of truth for user agent parsing logic
+  - Easier maintenance and updates
+  - Reduced code duplication
+  ```
+
+# 15. Code Review and CI
+rule: All code must be reviewed and pass CI checks before merging.
+
+# Reference: https://www.cursorrules.org/article/python-django-best-practices-cursorrules-prompt-fi?utm_source=cursorrules.org

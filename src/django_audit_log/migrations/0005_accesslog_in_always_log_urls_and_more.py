@@ -4,25 +4,37 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('django_audit_log', '0004_alter_accesslog_user_agent_loguseragent_and_more'),
+        ("django_audit_log", "0004_alter_accesslog_user_agent_loguseragent_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='accesslog',
-            name='in_always_log_urls',
-            field=models.BooleanField(default=False, editable=False, help_text='Whether this URL matched a pattern in AUDIT_LOG_ALWAYS_LOG_URLS'),
+            model_name="accesslog",
+            name="in_always_log_urls",
+            field=models.BooleanField(
+                default=False,
+                editable=False,
+                help_text="Whether this URL matched a pattern in AUDIT_LOG_ALWAYS_LOG_URLS",
+            ),
         ),
         migrations.AddField(
-            model_name='accesslog',
-            name='in_sample_urls',
-            field=models.BooleanField(default=False, editable=False, help_text='Whether this URL matched a pattern in AUDIT_LOG_SAMPLE_URLS'),
+            model_name="accesslog",
+            name="in_sample_urls",
+            field=models.BooleanField(
+                default=False,
+                editable=False,
+                help_text="Whether this URL matched a pattern in AUDIT_LOG_SAMPLE_URLS",
+            ),
         ),
         migrations.AddField(
-            model_name='accesslog',
-            name='sample_rate',
-            field=models.FloatField(blank=True, editable=False, help_text='The AUDIT_LOG_SAMPLE_RATE value when this log was created', null=True),
+            model_name="accesslog",
+            name="sample_rate",
+            field=models.FloatField(
+                blank=True,
+                editable=False,
+                help_text="The AUDIT_LOG_SAMPLE_RATE value when this log was created",
+                null=True,
+            ),
         ),
     ]

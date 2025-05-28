@@ -1,4 +1,14 @@
+from datetime import timedelta
+
 from django.contrib import admin
+from django.contrib.admin import SimpleListFilter
+from django.db import models
+from django.db.models.functions import Cast
+from django.utils import timezone
+from django.utils.html import mark_safe
+
+from django_audit_log.user_agent_utils import UserAgentUtil
+
 from .models import (
     AccessLog,
     LogIpAddress,
@@ -7,13 +17,6 @@ from .models import (
     LogUser,
     LogUserAgent,
 )
-from django.db import models
-from django.db.models.functions import Cast
-from django.utils.safestring import mark_safe
-from django.contrib.admin import SimpleListFilter
-from django.utils import timezone
-from datetime import timedelta
-import re
 
 try:
     from rangefilter.filters import DateRangeFilter
@@ -63,15 +66,15 @@ class BrowserTypeFilter(SimpleListFilter):
         value = self.value()
 
         if value == "chrome":
-            return queryset.filter(
-                user_agent_normalized__browser="Chrome"
-            ).exclude(user_agent_normalized__browser="Chromium")
+            return queryset.filter(user_agent_normalized__browser="Chrome").exclude(
+                user_agent_normalized__browser="Chromium"
+            )
         elif value == "firefox":
             return queryset.filter(user_agent_normalized__browser="Firefox")
         elif value == "safari":
-            return queryset.filter(
-                user_agent_normalized__browser="Safari"
-            ).exclude(user_agent_normalized__browser="Chrome")
+            return queryset.filter(user_agent_normalized__browser="Safari").exclude(
+                user_agent_normalized__browser="Chrome"
+            )
         elif value == "edge":
             return queryset.filter(user_agent_normalized__browser="Edge")
         elif value == "ie":
@@ -194,7 +197,7 @@ class AccessLogAdmin(ReadOnlyAdmin):
             .ua-browser {{ color: #0066cc; }}
             .ua-os {{ color: #28a745; }}
             .ua-device {{ color: #fd7e14; }}
-            .ua-raw {{ margin-top: 15px; font-family: monospace; font-size: 12px; 
+            .ua-raw {{ margin-top: 15px; font-family: monospace; font-size: 12px;
                       padding: 10px; background-color: #f8f9fa; border-radius: 4px; word-break: break-all; }}
         </style>
         <div class="ua-info">
@@ -410,9 +413,9 @@ class AccessLogAdmin(ReadOnlyAdmin):
         html.append(
             f"""
             <div style="margin-top: 15px; font-size: 13px;">
-                <p>Based on {categories['total']} requests • 
-                Bot/Crawler traffic: {bot_percentage:.1f}% • 
-                Top browser: {top_browser} ({top_browser_pct:.1f}%) • 
+                <p>Based on {categories['total']} requests •
+                Bot/Crawler traffic: {bot_percentage:.1f}% •
+                Top browser: {top_browser} ({top_browser_pct:.1f}%) •
                 Top OS: {top_os} ({top_os_pct:.1f}%)</p>
             </div>
         """
@@ -508,210 +511,6 @@ class MultipleIPFilter(SimpleListFilter):
             ).filter(ip_count=1)
 
 
-class UserAgentUtil:
-    """Utility class for parsing and normalizing user agents."""
-
-    # Samsung device model mapping
-    SAMSUNG_DEVICE_MODELS = {
-        'gta4ljt': 'Galaxy Tab A4 Lite',
-        'gta8xx': 'Galaxy Tab A8',
-        'gta9pxxx': 'Galaxy Tab A9+',
-        'gtanotexlltedx': 'Galaxy Note 10.1',
-        'gtaxlltexx': 'Galaxy Tab A 10.1',
-        'gts210ltedx': 'Galaxy Tab S2 9.7 LTE',
-        'gts210ltexx': 'Galaxy Tab S2 9.7 LTE',
-    }
-
-    # Browser pattern regex
-    BROWSER_PATTERNS = [
-        (r"tl\.eskola\.eskola_app-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Non-playstore format
-        (r"tl\.eskola\.eskola_app\.playstore-(\d+\.\d+\.\d+)-release(?:/(\w+))?", "Eskola APK"),  # Playstore format
-        (r"Chrome/(\d+)", "Chrome"),
-        (r"Firefox/(\d+)", "Firefox"),
-        (r"Safari/(\d+)", "Safari"),
-        (r"Edge/(\d+)", "Edge"),
-        (r"Edg/(\d+)", "Edge"),  # New Edge based on Chromium
-        (r"MSIE\s(\d+)", "Internet Explorer"),
-        (r"Trident/.*rv:(\d+)", "Internet Explorer"),
-        (r"OPR/(\d+)", "Opera"),
-        (r"Opera/(\d+)", "Opera"),
-        (r"UCBrowser/(\d+)", "UC Browser"),
-        (r"SamsungBrowser/(\d+)", "Samsung Browser"),
-        (r"YaBrowser/(\d+)", "Yandex Browser"),
-        (r"HeadlessChrome", "Headless Chrome"),
-        (r"Googlebot", "Googlebot"),
-        (r"bingbot", "Bingbot"),
-        (r"DuckDuckBot", "DuckDuckBot"),
-    ]
-
-    # OS pattern regex
-    OS_PATTERNS = [
-        (r"Windows NT 10\.0", "Windows 10"),
-        (r"Windows NT 6\.3", "Windows 8.1"),
-        (r"Windows NT 6\.2", "Windows 8"),
-        (r"Windows NT 6\.1", "Windows 7"),
-        (r"Windows NT 6\.0", "Windows Vista"),
-        (r"Windows NT 5\.1", "Windows XP"),
-        (r"Windows NT 5\.0", "Windows 2000"),
-        (r"Macintosh.*Mac OS X", "macOS"),
-        (r"Android\s+(\d+)", "Android"),
-        (r"Linux", "Linux"),
-        (r"iPhone.*OS\s+(\d+)", "iOS"),
-        (r"iPad.*OS\s+(\d+)", "iOS"),
-        (r"iPod.*OS\s+(\d+)", "iOS"),
-        (r"CrOS", "Chrome OS"),
-    ]
-
-    # Device type patterns
-    DEVICE_PATTERNS = [
-        (r"iPhone", "Mobile"),
-        (r"iPod", "Mobile"),
-        (r"iPad", "Tablet"),
-        (r"Android.*Mobile", "Mobile"),
-        (r"Android(?!.*Mobile)", "Tablet"),
-        (r"Mobile", "Mobile"),
-        (r"Tablet", "Tablet"),
-    ]
-
-    # Bot/crawler patterns
-    BOT_PATTERNS = [
-        (
-            r"bot|crawler|spider|crawl|Googlebot|bingbot|yahoo|slurp|ahref|semrush|baidu|bitdiscovery-suggestions",
-            "Bot/Crawler",
-        ),
-    ]
-
-    @classmethod
-    def get_device_model_name(cls, device_code):
-        """Get the human-readable device name from a Samsung device code."""
-        return cls.SAMSUNG_DEVICE_MODELS.get(device_code, f"Unknown Samsung Device ({device_code})")
-
-    @classmethod
-    def normalize_user_agent(cls, user_agent):
-        """
-        Normalize a user agent string to categorize browsers, OS, and device types.
-
-        Args:
-            user_agent: The raw user agent string
-
-        Returns:
-            dict: Containing browser, browser_version, os, device_type, is_bot
-        """
-        if not user_agent:
-            return {
-                "browser": "Unknown",
-                "browser_version": None,
-                "os": "Unknown",
-                "os_version": None,
-                "device_type": "Unknown",
-                "is_bot": False,
-                "raw": user_agent,
-            }
-
-        result = {
-            "browser": "Unknown",
-            "browser_version": None,
-            "os": "Unknown",
-            "os_version": None,
-            "device_type": "Mobile",  # Default to Mobile for Eskola APK
-            "is_bot": False,
-            "raw": user_agent,
-        }
-
-        # Special case for Eskola APK (both formats)
-        eskola_match = re.search(r"tl\.eskola\.eskola_app(?:\.playstore)?-(\d+\.\d+\.\d+)-release(?:/(\w+))?", user_agent)
-        if eskola_match:
-            result["browser"] = "Eskola APK"
-            result["browser_version"] = eskola_match.group(1)
-            result["os"] = "Android"
-            # Try to extract device model if present
-            if eskola_match.group(2):
-                device_code = eskola_match.group(2)
-                device_name = cls.get_device_model_name(device_code)
-                result["os_version"] = f"Device: {device_code} ({device_name})"
-            return result
-
-        # Check if it's a bot
-        for pattern, _ in cls.BOT_PATTERNS:
-            if re.search(pattern, user_agent, re.IGNORECASE):
-                result["is_bot"] = True
-                result["browser"] = "Bot/Crawler"
-                result["device_type"] = "Bot"
-                break
-
-        # Detect browser and version
-        for pattern, browser in cls.BROWSER_PATTERNS:
-            match = re.search(pattern, user_agent)
-            if match:
-                result["browser"] = browser
-                # Get version if available
-                if len(match.groups()) > 0 and match.group(1).isdigit():
-                    result["browser_version"] = match.group(1)
-                break
-
-        # Detect OS
-        for pattern, os in cls.OS_PATTERNS:
-            if re.search(pattern, user_agent):
-                result["os"] = os
-                break
-
-        # Detect device type (only if not already a bot)
-        if not result["is_bot"]:
-            for pattern, device in cls.DEVICE_PATTERNS:
-                if re.search(pattern, user_agent, re.IGNORECASE):
-                    result["device_type"] = device
-                    break
-
-        return result
-
-    @classmethod
-    def categorize_user_agents(cls, user_agents):
-        """
-        Group a list of user agent strings into categories.
-
-        Args:
-            user_agents: List of (user_agent, count) tuples
-
-        Returns:
-            dict: Categorized counts by browser, os, and device type
-        """
-        categories = {
-            "browsers": {},
-            "operating_systems": {},
-            "device_types": {},
-            "bots": 0,
-            "total": 0,
-        }
-
-        for agent, count in user_agents:
-            categories["total"] += count
-            info = cls.normalize_user_agent(agent)
-
-            # Add to browser counts
-            browser = info["browser"]
-            if browser not in categories["browsers"]:
-                categories["browsers"][browser] = 0
-            categories["browsers"][browser] += count
-
-            # Add to OS counts
-            os = info["os"]
-            if os not in categories["operating_systems"]:
-                categories["operating_systems"][os] = 0
-            categories["operating_systems"][os] += count
-
-            # Add to device type counts
-            device = info["device_type"]
-            if device not in categories["device_types"]:
-                categories["device_types"][device] = 0
-            categories["device_types"][device] += count
-
-            # Count bots
-            if info["is_bot"]:
-                categories["bots"] += count
-
-        return categories
-
-
 class LogUserAdmin(ReadOnlyAdmin):
     """Admin class for LogUser model."""
 
@@ -730,7 +529,7 @@ class LogUserAdmin(ReadOnlyAdmin):
         "url_access_stats",
         "recent_activity",
         "user_agent_stats",
-        "distinct_user_agents"
+        "distinct_user_agents",
     )
 
     # Set up the list_filter with conditional DateRangeFilter if available
@@ -1069,16 +868,16 @@ class LogUserAdmin(ReadOnlyAdmin):
             AccessLog.objects.filter(user=obj)
             .exclude(user_agent_normalized__isnull=True)
             .values(
-                'user_agent_normalized__user_agent',
-                'user_agent_normalized__browser',
-                'user_agent_normalized__browser_version',
-                'user_agent_normalized__operating_system',
-                'user_agent_normalized__operating_system_version',
-                'user_agent_normalized__device_type',
-                'user_agent_normalized__is_bot'
+                "user_agent_normalized__user_agent",
+                "user_agent_normalized__browser",
+                "user_agent_normalized__browser_version",
+                "user_agent_normalized__operating_system",
+                "user_agent_normalized__operating_system_version",
+                "user_agent_normalized__device_type",
+                "user_agent_normalized__is_bot",
             )
-            .annotate(count=Count('user_agent_normalized'))
-            .order_by('-count')
+            .annotate(count=Count("user_agent_normalized"))
+            .order_by("-count")
         )
 
         if not user_agents:
@@ -1127,24 +926,30 @@ class LogUserAdmin(ReadOnlyAdmin):
 
         html = [
             style,
-            '''<table class="ua-list">
+            """<table class="ua-list">
                 <tr>
                     <th>Browser</th>
                     <th>Operating System</th>
                     <th>Device Type</th>
                     <th>Usage Count</th>
                     <th>Raw User Agent</th>
-                </tr>'''
+                </tr>""",
         ]
 
         for agent in user_agents:
             browser = f"{agent['user_agent_normalized__browser']} {agent['user_agent_normalized__browser_version'] or ''}"
-            os_version = f" {agent['user_agent_normalized__operating_system_version']}" if agent['user_agent_normalized__operating_system_version'] else ""
+            os_version = (
+                f" {agent['user_agent_normalized__operating_system_version']}"
+                if agent["user_agent_normalized__operating_system_version"]
+                else ""
+            )
             os = f"{agent['user_agent_normalized__operating_system']}{os_version}"
-            
-            bot_class = ' class="ua-bot"' if agent['user_agent_normalized__is_bot'] else ''
-            
-            html.append(f'''
+
+            bot_class = (
+                ' class="ua-bot"' if agent["user_agent_normalized__is_bot"] else ""
+            )
+
+            html.append(f"""
                 <tr{bot_class}>
                     <td>{browser}</td>
                     <td>{os}</td>
@@ -1154,11 +959,11 @@ class LogUserAdmin(ReadOnlyAdmin):
                         <div class="ua-raw">{agent['user_agent_normalized__user_agent']}</div>
                     </td>
                 </tr>
-            ''')
+            """)
 
-        html.append('</table>')
-        
-        return mark_safe(''.join(html))
+        html.append("</table>")
+
+        return mark_safe("".join(html))
 
     distinct_user_agents.short_description = "Distinct User Agents"
 
@@ -1307,7 +1112,13 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         "usage_count",
         "unique_users_count",
     )
-    list_filter = ("browser", "operating_system", "device_type", "is_bot", "operating_system_version",)
+    list_filter = (
+        "browser",
+        "operating_system",
+        "device_type",
+        "is_bot",
+        "operating_system_version",
+    )
     search_fields = ("user_agent", "browser", "operating_system")
     readonly_fields = (
         "user_agent",
@@ -1318,7 +1129,7 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         "device_type",
         "is_bot",
         "usage_details",
-        "related_users"
+        "related_users",
     )
 
     def get_queryset(self, request):
@@ -1329,19 +1140,20 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
             # Add semantic version ordering
             version_as_int=models.Case(
                 models.When(
-                    operating_system_version__regex=r'^\d+$',
-                    then=Cast('operating_system_version', models.IntegerField())
+                    operating_system_version__regex=r"^\d+$",
+                    then=Cast("operating_system_version", models.IntegerField()),
                 ),
                 default=0,
                 output_field=models.IntegerField(),
-            )
-        ).order_by('operating_system', '-version_as_int', 'operating_system_version')
+            ),
+        ).order_by("operating_system", "-version_as_int", "operating_system_version")
         return qs
 
     def operating_system_version(self, obj):
         """Display the operating system version with semantic ordering."""
         return obj.operating_system_version
-    operating_system_version.admin_order_field = 'version_as_int'
+
+    operating_system_version.admin_order_field = "version_as_int"
     operating_system_version.short_description = "OS Version"
 
     def usage_count(self, obj):
@@ -1442,12 +1254,9 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         # Get users who have used this user agent with their usage counts
         users = (
             AccessLog.objects.filter(user_agent_normalized=obj)
-            .values('user__id', 'user__user_name')
-            .annotate(
-                usage_count=Count('id'),
-                last_used=models.Max('timestamp')
-            )
-            .order_by('-usage_count')
+            .values("user__id", "user__user_name")
+            .annotate(usage_count=Count("id"), last_used=models.Max("timestamp"))
+            .order_by("-usage_count")
         )
 
         if not users:
@@ -1497,34 +1306,36 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
 
         html = [
             style,
-            '''<table class="user-list">
+            """<table class="user-list">
                 <tr>
                     <th>User</th>
                     <th>Usage Count</th>
                     <th>Last Used</th>
-                </tr>'''
+                </tr>""",
         ]
 
         for user in users:
             # Create a link to the user's admin page
-            user_url = reverse('admin:django_audit_log_loguser_change', args=[user['user__id']])
+            user_url = reverse(
+                "admin:django_audit_log_loguser_change", args=[user["user__id"]]
+            )
             user_link = format_html(
                 '<a class="user-link" href="{}">{}</a>',
                 user_url,
-                user['user__user_name']
+                user["user__user_name"],
             )
-            
-            html.append(f'''
+
+            html.append(f"""
                 <tr>
                     <td>{user_link}</td>
                     <td class="user-count">{user['usage_count']}</td>
                     <td class="last-used">{user['last_used'].strftime('%Y-%m-%d %H:%M:%S')}</td>
                 </tr>
-            ''')
+            """)
 
-        html.append('</table>')
-        
-        return mark_safe(''.join(html))
+        html.append("</table>")
+
+        return mark_safe("".join(html))
 
     related_users.short_description = "Users of this User Agent"
 

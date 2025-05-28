@@ -4,15 +4,20 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('django_audit_log', '0005_accesslog_in_always_log_urls_and_more'),
+        ("django_audit_log", "0005_accesslog_in_always_log_urls_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='loguseragent',
-            name='operating_system_version',
-            field=models.CharField(blank=True, editable=False, help_text='Version of the operating system if available', max_length=20, null=True),
+            model_name="loguseragent",
+            name="operating_system_version",
+            field=models.CharField(
+                blank=True,
+                editable=False,
+                help_text="Version of the operating system if available",
+                max_length=20,
+                null=True,
+            ),
         ),
     ]

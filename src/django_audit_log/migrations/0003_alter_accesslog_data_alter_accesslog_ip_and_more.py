@@ -5,85 +5,131 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('django_audit_log', '0002_accesslog_user_agent'),
+        ("django_audit_log", "0002_accesslog_user_agent"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='accesslog',
-            name='data',
-            field=models.JSONField(editable=False, help_text='Payload'),
+            model_name="accesslog",
+            name="data",
+            field=models.JSONField(editable=False, help_text="Payload"),
         ),
         migrations.AlterField(
-            model_name='accesslog',
-            name='ip',
-            field=models.ForeignKey(blank=True, editable=False, null=True, on_delete=django.db.models.deletion.PROTECT, to='django_audit_log.logipaddress'),
+            model_name="accesslog",
+            name="ip",
+            field=models.ForeignKey(
+                blank=True,
+                editable=False,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                to="django_audit_log.logipaddress",
+            ),
         ),
         migrations.AlterField(
-            model_name='accesslog',
-            name='method',
+            model_name="accesslog",
+            name="method",
             field=models.CharField(blank=True, editable=False, max_length=8),
         ),
         migrations.AlterField(
-            model_name='accesslog',
-            name='path',
-            field=models.ForeignKey(blank=True, editable=False, null=True, on_delete=django.db.models.deletion.PROTECT, to='django_audit_log.logpath'),
+            model_name="accesslog",
+            name="path",
+            field=models.ForeignKey(
+                blank=True,
+                editable=False,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                to="django_audit_log.logpath",
+            ),
         ),
         migrations.AlterField(
-            model_name='accesslog',
-            name='referrer',
-            field=models.ForeignKey(blank=True, editable=False, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='refers', to='django_audit_log.logpath'),
+            model_name="accesslog",
+            name="referrer",
+            field=models.ForeignKey(
+                blank=True,
+                editable=False,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="refers",
+                to="django_audit_log.logpath",
+            ),
         ),
         migrations.AlterField(
-            model_name='accesslog',
-            name='response_url',
-            field=models.ForeignKey(blank=True, editable=False, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='response', to='django_audit_log.logpath'),
+            model_name="accesslog",
+            name="response_url",
+            field=models.ForeignKey(
+                blank=True,
+                editable=False,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="response",
+                to="django_audit_log.logpath",
+            ),
         ),
         migrations.AlterField(
-            model_name='accesslog',
-            name='session_key',
-            field=models.ForeignKey(blank=True, editable=False, null=True, on_delete=django.db.models.deletion.PROTECT, to='django_audit_log.logsessionkey'),
+            model_name="accesslog",
+            name="session_key",
+            field=models.ForeignKey(
+                blank=True,
+                editable=False,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                to="django_audit_log.logsessionkey",
+            ),
         ),
         migrations.AlterField(
-            model_name='accesslog',
-            name='status_code',
-            field=models.IntegerField(blank=True, editable=False, help_text='Response code (200=OK)', null=True),
+            model_name="accesslog",
+            name="status_code",
+            field=models.IntegerField(
+                blank=True,
+                editable=False,
+                help_text="Response code (200=OK)",
+                null=True,
+            ),
         ),
         migrations.AlterField(
-            model_name='accesslog',
-            name='user',
-            field=models.ForeignKey(blank=True, editable=False, null=True, on_delete=django.db.models.deletion.PROTECT, to='django_audit_log.loguser'),
+            model_name="accesslog",
+            name="user",
+            field=models.ForeignKey(
+                blank=True,
+                editable=False,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                to="django_audit_log.loguser",
+            ),
         ),
         migrations.AlterField(
-            model_name='accesslog',
-            name='user_agent',
-            field=models.TextField(blank=True, editable=False, help_text='User Agent string', null=True),
+            model_name="accesslog",
+            name="user_agent",
+            field=models.TextField(
+                blank=True, editable=False, help_text="User Agent string", null=True
+            ),
         ),
         migrations.AlterField(
-            model_name='logipaddress',
-            name='address',
+            model_name="logipaddress",
+            name="address",
             field=models.GenericIPAddressField(editable=False),
         ),
         migrations.AlterField(
-            model_name='logpath',
-            name='path',
+            model_name="logpath",
+            name="path",
             field=models.CharField(blank=True, editable=False, max_length=4096),
         ),
         migrations.AlterField(
-            model_name='logsessionkey',
-            name='key',
+            model_name="logsessionkey",
+            name="key",
             field=models.CharField(blank=True, editable=False, max_length=1024),
         ),
         migrations.AlterField(
-            model_name='loguser',
-            name='id',
-            field=models.IntegerField(editable=False, primary_key=True, serialize=False),
+            model_name="loguser",
+            name="id",
+            field=models.IntegerField(
+                editable=False, primary_key=True, serialize=False
+            ),
         ),
         migrations.AlterField(
-            model_name='loguser',
-            name='user_name',
+            model_name="loguser",
+            name="user_name",
             field=models.CharField(blank=True, editable=False, max_length=1024),
         ),
     ]

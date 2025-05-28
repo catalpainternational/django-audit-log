@@ -5,80 +5,183 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='LogUser',
+            name="LogUser",
             fields=[
-                ('id', models.IntegerField(primary_key=True, serialize=False)),
-                ('user_name', models.CharField(blank=True, max_length=1024)),
+                ("id", models.IntegerField(primary_key=True, serialize=False)),
+                ("user_name", models.CharField(blank=True, max_length=1024)),
             ],
             options={
-                'verbose_name': 'Log User',
-                'verbose_name_plural': 'Log Users',
+                "verbose_name": "Log User",
+                "verbose_name_plural": "Log Users",
             },
         ),
         migrations.CreateModel(
-            name='LogIpAddress',
+            name="LogIpAddress",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('address', models.GenericIPAddressField()),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("address", models.GenericIPAddressField()),
             ],
             options={
-                'verbose_name': 'Log IP Address',
-                'verbose_name_plural': 'Log IP Addresses',
-                'indexes': [models.Index(fields=['address'], name='django_audi_address_fec711_idx')],
+                "verbose_name": "Log IP Address",
+                "verbose_name_plural": "Log IP Addresses",
+                "indexes": [
+                    models.Index(
+                        fields=["address"], name="django_audi_address_fec711_idx"
+                    )
+                ],
             },
         ),
         migrations.CreateModel(
-            name='LogPath',
+            name="LogPath",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('path', models.CharField(blank=True, max_length=4096)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("path", models.CharField(blank=True, max_length=4096)),
             ],
             options={
-                'verbose_name': 'Log Path',
-                'verbose_name_plural': 'Log Paths',
-                'indexes': [models.Index(fields=['path'], name='django_audi_path_6a20fe_idx')],
+                "verbose_name": "Log Path",
+                "verbose_name_plural": "Log Paths",
+                "indexes": [
+                    models.Index(fields=["path"], name="django_audi_path_6a20fe_idx")
+                ],
             },
         ),
         migrations.CreateModel(
-            name='LogSessionKey',
+            name="LogSessionKey",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('key', models.CharField(blank=True, max_length=1024)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("key", models.CharField(blank=True, max_length=1024)),
             ],
             options={
-                'verbose_name': 'Log Session Key',
-                'verbose_name_plural': 'Log Session Keys',
-                'indexes': [models.Index(fields=['key'], name='django_audi_key_63f27b_idx')],
+                "verbose_name": "Log Session Key",
+                "verbose_name_plural": "Log Session Keys",
+                "indexes": [
+                    models.Index(fields=["key"], name="django_audi_key_63f27b_idx")
+                ],
             },
         ),
         migrations.CreateModel(
-            name='AccessLog',
+            name="AccessLog",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('method', models.CharField(blank=True, max_length=8)),
-                ('data', models.JSONField(help_text='Payload')),
-                ('status_code', models.IntegerField(blank=True, help_text='Response code (200=OK)', null=True)),
-                ('timestamp', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('ip', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, to='django_audit_log.logipaddress')),
-                ('path', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, to='django_audit_log.logpath')),
-                ('referrer', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='refers', to='django_audit_log.logpath')),
-                ('response_url', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='response', to='django_audit_log.logpath')),
-                ('session_key', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, to='django_audit_log.logsessionkey')),
-                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, to='django_audit_log.loguser')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("method", models.CharField(blank=True, max_length=8)),
+                ("data", models.JSONField(help_text="Payload")),
+                (
+                    "status_code",
+                    models.IntegerField(
+                        blank=True, help_text="Response code (200=OK)", null=True
+                    ),
+                ),
+                ("timestamp", models.DateTimeField(auto_now_add=True, db_index=True)),
+                (
+                    "ip",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        to="django_audit_log.logipaddress",
+                    ),
+                ),
+                (
+                    "path",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        to="django_audit_log.logpath",
+                    ),
+                ),
+                (
+                    "referrer",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="refers",
+                        to="django_audit_log.logpath",
+                    ),
+                ),
+                (
+                    "response_url",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="response",
+                        to="django_audit_log.logpath",
+                    ),
+                ),
+                (
+                    "session_key",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        to="django_audit_log.logsessionkey",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        to="django_audit_log.loguser",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Access Log',
-                'verbose_name_plural': 'Access Logs',
-                'ordering': ['-timestamp'],
-                'indexes': [models.Index(fields=['timestamp'], name='django_audi_timesta_476d24_idx'), models.Index(fields=['method'], name='django_audi_method_0089b9_idx'), models.Index(fields=['status_code'], name='django_audi_status__70951b_idx')],
+                "verbose_name": "Access Log",
+                "verbose_name_plural": "Access Logs",
+                "ordering": ["-timestamp"],
+                "indexes": [
+                    models.Index(
+                        fields=["timestamp"], name="django_audi_timesta_476d24_idx"
+                    ),
+                    models.Index(
+                        fields=["method"], name="django_audi_method_0089b9_idx"
+                    ),
+                    models.Index(
+                        fields=["status_code"], name="django_audi_status__70951b_idx"
+                    ),
+                ],
             },
         ),
     ]

@@ -1,0 +1,66 @@
+repos:
+  # Pre-commit hooks for general file cleanup
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: debug-statements
+      - id: mixed-line-ending
+
+  # Ruff for Python linting and formatting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # Django-specific checks
+  - repo: local
+    hooks:
+      - id: django-check
+        name: Django Check
+        entry: uv run python testproject/manage.py check
+        language: system
+        pass_filenames: false
+        files: \.(py)$
+
+      - id: django-check-migrations
+        name: Django Check Migrations
+        entry: uv run python testproject/manage.py makemigrations --check --dry-run
+        language: system
+        pass_filenames: false
+        files: \.(py)$
+
+      # Run pytest on every commit for fast feedback
+      - id: pytest-fast
+        name: Run pytest (fast)
+        entry: uv run pytest -x --tb=short
+        language: system
+        pass_filenames: false
+        files: \.(py)$
+
+  # Run full test suite on pre-push
+  - repo: local
+    hooks:
+      - id: pytest-full
+        name: Run full test suite
+        entry: uv run pytest -v --tb=short
+        language: system
+        pass_filenames: false
+        files: \.(py)$
+        stages: [pre-push]
+
+  # Security checks (exclude tests and migrations)
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        args: ["--skip", "B101,B311"]
+        exclude: ^(.*test.*\.py|.*migrations.*\.py|.*__init__\.py)$

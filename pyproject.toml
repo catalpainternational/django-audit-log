@@ -18,12 +18,18 @@ django-audit-log = "django_audit_log:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "testproject.settings"
+python_files = "tests.py test_*.py"
+pythonpath = ["testproject"]
+
 [dependency-groups]
 dev = [
+    "factory-boy>=3.3.3",
     "pytest>=8.3.5",
+    "pytest-cov>=6.1.1",
     "pytest-django>=4.11.1",
+    "pre-commit>=4.0.0",
+    "pre-commit-uv>=4.1.4",
+    "ruff>=0.8.0",
 ]
-
-[tool.pytest.ini_options]
-djongo_settings_module = "testproject.testproject.settings"
-DJANGO_SETTINGS_MODULE = "testproject.settings"
