@@ -71,6 +71,40 @@ rule: Examples:
   - `docs: update API documentation for new endpoints`
   - `refactor!: restructure user agent utility classes`
 
+## Commit Message Writing Procedure:
+rule: For complex changes, use multi-line commit messages with proper structure.
+rule: Create commit message file: `cat > /tmp/commit_msg.txt << 'EOF'` then write message, then `EOF`.
+rule: Use `git commit -F /tmp/commit_msg.txt` to apply multi-line message from file.
+rule: Multi-line format structure:
+  1. Subject line (50 chars max): `<type>[scope]: <description>`
+  2. Blank line
+  3. Body paragraph explaining what and why
+  4. Blank line
+  5. "Changes:" section with bullet points of specific modifications
+  6. Blank line
+  7. "Benefits:" section explaining value/improvements gained
+rule: Subject line should be imperative mood (e.g., "add", "fix", "refactor").
+rule: Body should explain the motivation and contrast with previous behavior.
+rule: Use bullet points for clarity in Changes and Benefits sections.
+rule: Include metrics when relevant (e.g., "375 deletions, 239 insertions").
+rule: Example multi-line structure:
+  ```
+  refactor: eliminate UserAgentUtil code duplication
+  
+  Create dedicated user_agent_utils.py module to consolidate UserAgentUtil
+  functionality that was duplicated between models.py and admin.py.
+  
+  Changes:
+  - Create new src/django_audit_log/user_agent_utils.py module
+  - Remove duplicate UserAgentUtil class from models.py
+  - Update imports across all affected modules
+  
+  Benefits:
+  - Single source of truth for user agent parsing logic
+  - Easier maintenance and updates
+  - Reduced code duplication
+  ```
+
 # 15. Code Review and CI
 rule: All code must be reviewed and pass CI checks before merging.
 
