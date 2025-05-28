@@ -447,3 +447,6 @@ def test_loguseragentadmin_related_users():
     admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, admin.site)
     html = admin_obj.related_users(ua)
     assert "user-list" in html or "No users have used this user agent" in html
+
+
+# Test comment
