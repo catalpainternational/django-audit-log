@@ -123,3 +123,10 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Audit log exclusion for test
+AUDIT_LOG_EXCLUDE_BOTS = True
+AUDIT_LOG_EXCLUDED_URLS = [
+    r"^/gather/gather_admin/.*",
+    r"^/sw\.js$",
+]

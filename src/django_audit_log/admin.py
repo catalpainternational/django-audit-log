@@ -743,6 +743,20 @@ class LogUserAdmin(ReadOnlyAdmin):
     else:
         list_filter = (ActivityLevelFilter, MultipleIPFilter)
 
+    actions = ["clear_anonymous_logs"]
+
+    @admin.action(description="Delete all logs for anonymous user")
+    def clear_anonymous_logs(self, request, queryset):
+        from django.contrib import messages
+        from .models import AccessLog
+        # Only allow this action for the anonymous user
+        anonymous_users = queryset.filter(id=0)
+        if not anonymous_users.exists():
+            self.message_user(request, "No anonymous user selected.", level=messages.WARNING)
+            return
+        count, _ = AccessLog.objects.filter(user_id=0).delete()
+        self.message_user(request, f"Deleted {count} access logs for anonymous user.", level=messages.SUCCESS)
+
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         qs = qs.annotate(
