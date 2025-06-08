@@ -1,6 +1,6 @@
 [project]
 name = "catalpa-django-audit-log"
-version = "0.0.6"  # Should be same as tag
+version = "0.0.7"  # Should be same as tag
 description = "Add your description here"
 readme = "README.md"
 authors = [
