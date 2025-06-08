@@ -17,7 +17,7 @@ from django.http.response import HttpResponse
 
 # Third-party imports (if any)
 try:
-    from sentry_sdk import capture_exception
+    from sentry_sdk import capture_exception  # type: ignore
 except ImportError:
     # Fallback if sentry_sdk is not installed
     def capture_exception(exception):
@@ -31,12 +31,18 @@ class LogPath(models.Model):
     """
 
     path = models.CharField(max_length=4096, null=False, blank=True, editable=False)
+    exclude_path = models.BooleanField(
+        default=False,
+        help_text="Exclude this URL path from logging",
+        verbose_name="Exclude This URL",
+    )
 
     class Meta:
         verbose_name = "Log Path"
         verbose_name_plural = "Log Paths"
         indexes = [
             models.Index(fields=["path"]),
+            models.Index(fields=["exclude_path"]),  # Add index for performance
         ]
 
     @staticmethod
@@ -376,9 +382,18 @@ class AccessLog(models.Model):
         if user_agent_string:
             user_agent_obj = LogUserAgent.from_user_agent_string(user_agent_string)
 
-        # Exclude bots if configured
+        # Check database-based user agent exclusion first, then fall back to settings
+        if user_agent_obj and user_agent_obj.exclude_agent:
+            return None
+
+        # Backward compatibility: exclude bots if configured in settings and not already excluded by database
         exclude_bots = getattr(settings, "AUDIT_LOG_EXCLUDE_BOTS", False)
         if exclude_bots and user_agent_obj and user_agent_obj.is_bot:
+            return None
+
+        # Check database-based path exclusion early
+        path_obj = LogPath.from_request(request)
+        if path_obj and path_obj.exclude_path:
             return None
 
         # Enhanced URL exclusion: only exclude if status code is 200 (if response is present)
@@ -463,9 +478,19 @@ class AccessLog(models.Model):
         Returns:
             SamplingResult: Named tuple containing sampling information
         """
+        # Check database-based path exclusion first
+        path = request.path
+        path_obj = LogPath.objects.filter(path=path).first()
+        if path_obj and path_obj.exclude_path:
+            return cls.SamplingResult(
+                should_log=False,
+                in_always_log_urls=False,
+                in_sample_urls=False,
+                sample_rate=getattr(settings, "AUDIT_LOG_SAMPLE_RATE", 1.0),
+            )
+
         # Exclude by URL pattern before any sampling logic
         excluded_url_patterns = getattr(settings, "AUDIT_LOG_EXCLUDED_URLS", [])
-        path = request.path
         for pattern in excluded_url_patterns:
             if re.match(pattern, path):
                 return cls.SamplingResult(
@@ -488,8 +513,6 @@ class AccessLog(models.Model):
                 in_sample_urls=False,
                 sample_rate=sample_rate,
             )
-
-        path = request.path
 
         # First check if the URL should always be logged
         for pattern in always_log_urls:
@@ -563,6 +586,11 @@ class LogUserAgent(models.Model):
         max_length=256, null=True, blank=True, editable=False
     )
     is_bot = models.BooleanField(default=False, editable=False)
+    exclude_agent = models.BooleanField(
+        default=False,
+        help_text="Exclude this user agent from logging",
+        verbose_name="Exclude Agent",
+    )
 
     class Meta:
         verbose_name = "Log User Agent"
@@ -572,6 +600,7 @@ class LogUserAgent(models.Model):
             models.Index(fields=["operating_system"]),
             models.Index(fields=["device_type"]),
             models.Index(fields=["is_bot"]),
+            models.Index(fields=["exclude_agent"]),  # Add index for performance
         ]
 
     @classmethod

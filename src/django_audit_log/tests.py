@@ -56,6 +56,7 @@ class LogPathFactory(factory.django.DjangoModelFactory):
         model = "django_audit_log.LogPath"
 
     path = factory.Faker("uri_path")
+    exclude_path = False  # Add back now that field exists
 
 
 class LogSessionKeyFactory(factory.django.DjangoModelFactory):
@@ -83,6 +84,7 @@ class LogUserAgentFactory(factory.django.DjangoModelFactory):
     operating_system_version = factory.Faker("numerify", text="##.##")
     device_type = factory.Iterator(["Desktop", "Mobile", "Tablet"])
     is_bot = False
+    exclude_agent = False  # Add back now that field exists
 
 
 @pytest.mark.django_db
@@ -441,9 +443,521 @@ def test_loguseragentadmin_usage_details():
 
 @pytest.mark.django_db
 def test_loguseragentadmin_related_users():
-    ua = LogUserAgentFactory()
+    """Test related_users method of LogUserAgentAdmin."""
+    # Create a user agent and access log
+    user_agent = LogUserAgentFactory()
     user = LogUserFactory()
-    _log = AccessLogFactory(user_agent_normalized=ua, user=user)
-    admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, admin.site)
-    html = admin_obj.related_users(ua)
-    assert "user-list" in html or "No users have used this user agent" in html
+    AccessLogFactory(user_agent_normalized=user_agent, user=user)
+
+    admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
+    result = admin_obj.related_users(user_agent)
+    assert "table" in result
+    assert str(user.user_name) in result
+
+
+# New tests for database exclusion features
+@pytest.mark.django_db
+class TestDatabaseExclusion:
+    """Test database-based exclusion functionality."""
+
+    def test_loguseragent_exclude_agent_field_exists(self):
+        """Test that LogUserAgent model has exclude_agent field."""
+        user_agent = LogUserAgentFactory()
+        # This will fail until we add the field, which is expected
+        assert hasattr(user_agent, "exclude_agent")
+        assert user_agent.exclude_agent is False  # Default value
+
+    def test_logpath_exclude_path_field_exists(self):
+        """Test that LogPath model has exclude_path field."""
+        path = LogPathFactory()
+        # This will fail until we add the field, which is expected
+        assert hasattr(path, "exclude_path")
+        assert path.exclude_path is False  # Default value
+
+    def test_user_agent_exclusion_prevents_logging(self):
+        """Test that setting exclude_agent=True prevents AccessLog creation."""
+        # Create a user agent with exclusion enabled
+        user_agent = LogUserAgentFactory(exclude_agent=True)
+
+        # Create a mock request
+        request = HttpRequest()
+        request.path = "/test/path"
+        request.method = "GET"
+        request.META = {
+            "HTTP_USER_AGENT": user_agent.user_agent,
+            "REMOTE_ADDR": "127.0.0.1",
+        }
+        request.user = types.SimpleNamespace(
+            is_anonymous=True, pk=0, get_username=lambda: "anonymous"
+        )
+        request.session = types.SimpleNamespace(session_key="test_session")
+
+        # Mock the user agent lookup to return our excluded agent
+        original_method = LogUserAgent.from_user_agent_string
+        LogUserAgent.from_user_agent_string = classmethod(lambda cls, ua: user_agent)
+
+        try:
+            # Attempt to create access log
+            result = AccessLog.from_request(request)
+            # Should return None due to exclusion
+            assert result is None
+        finally:
+            # Restore original method
+            LogUserAgent.from_user_agent_string = original_method
+
+    def test_user_agent_non_exclusion_allows_logging(self, settings):
+        """Test that exclude_agent=False allows normal logging."""
+        # Configure settings to ensure sampling allows logging
+        settings.AUDIT_LOG_SAMPLE_RATE = 1.0  # Always log when sampled
+        settings.AUDIT_LOG_ALWAYS_LOG_URLS = [r"^/test/.*"]  # Always log test paths
+        settings.AUDIT_LOG_EXCLUDED_IPS = []  # Don't exclude any IPs for this test
+
+        # Create a user agent without exclusion
+        user_agent = LogUserAgentFactory(exclude_agent=False)
+
+        # Create a mock request
+        request = HttpRequest()
+        request.path = "/test/path"
+        request.method = "GET"
+        request.META = {
+            "HTTP_USER_AGENT": user_agent.user_agent,
+            "REMOTE_ADDR": "192.168.1.100",  # Use non-excluded IP
+        }
+        request.user = types.SimpleNamespace(
+            is_anonymous=True, pk=0, get_username=lambda: "anonymous"
+        )
+        request.session = types.SimpleNamespace(session_key="test_session")
+
+        # Mock the user agent lookup
+        original_method = LogUserAgent.from_user_agent_string
+        LogUserAgent.from_user_agent_string = classmethod(lambda cls, ua: user_agent)
+
+        try:
+            # Attempt to create access log
+            result = AccessLog.from_request(request)
+            # Should create log entry
+            assert result is not None
+            assert result.user_agent_normalized == user_agent
+        finally:
+            # Restore original method
+            LogUserAgent.from_user_agent_string = original_method
+
+    def test_path_exclusion_prevents_logging(self):
+        """Test that setting exclude_path=True prevents AccessLog creation."""
+        # Create a path with exclusion enabled
+        path = LogPathFactory(path="/excluded/path", exclude_path=True)
+
+        # Create a mock request
+        request = HttpRequest()
+        request.path = "/excluded/path"
+        request.method = "GET"
+        request.META = {
+            "HTTP_USER_AGENT": "Mozilla/5.0 (Test Browser)",
+            "REMOTE_ADDR": "127.0.0.1",
+        }
+        request.user = types.SimpleNamespace(
+            is_anonymous=True, pk=0, get_username=lambda: "anonymous"
+        )
+        request.session = types.SimpleNamespace(session_key="test_session")
+
+        # Mock the path lookup to return our excluded path
+        original_method = LogPath.from_request
+        LogPath.from_request = classmethod(lambda cls, req: path)
+
+        try:
+            # Attempt to create access log
+            result = AccessLog.from_request(request)
+            # Should return None due to path exclusion
+            assert result is None
+        finally:
+            # Restore original method
+            LogPath.from_request = original_method
+
+    def test_path_non_exclusion_allows_logging(self, settings):
+        """Test that exclude_path=False allows normal logging."""
+        # Configure settings to ensure sampling allows logging
+        settings.AUDIT_LOG_SAMPLE_RATE = 1.0  # Always log when sampled
+        settings.AUDIT_LOG_ALWAYS_LOG_URLS = [
+            r"^/allowed/.*"
+        ]  # Always log allowed paths
+        settings.AUDIT_LOG_EXCLUDED_IPS = []  # Don't exclude any IPs for this test
+
+        # Create a path without exclusion
+        path = LogPathFactory(path="/allowed/path", exclude_path=False)
+
+        # Create a mock request
+        request = HttpRequest()
+        request.path = "/allowed/path"
+        request.method = "GET"
+        request.META = {
+            "HTTP_USER_AGENT": "Mozilla/5.0 (Test Browser)",
+            "REMOTE_ADDR": "192.168.1.100",  # Use non-excluded IP
+        }
+        request.user = types.SimpleNamespace(
+            is_anonymous=True, pk=0, get_username=lambda: "anonymous"
+        )
+        request.session = types.SimpleNamespace(session_key="test_session")
+
+        # Mock the path lookup
+        original_method = LogPath.from_request
+        LogPath.from_request = classmethod(lambda cls, req: path)
+
+        try:
+            # Attempt to create access log
+            result = AccessLog.from_request(request)
+            # Should create log entry
+            assert result is not None
+            assert result.path == path
+        finally:
+            # Restore original method
+            LogPath.from_request = original_method
+
+    def test_sampling_method_respects_path_exclusion(self):
+        """Test that _check_sampling method respects database path exclusion."""
+        # Create an excluded path
+        LogPathFactory(path="/api/excluded", exclude_path=True)
+
+        # Create a mock request
+        request = HttpRequest()
+        request.path = "/api/excluded"
+
+        # Test the sampling method
+        result = AccessLog._check_sampling(request)
+
+        # Should return should_log=False due to database exclusion
+        assert result.should_log is False
+        assert result.in_always_log_urls is False
+        assert result.in_sample_urls is False
+
+
+@pytest.mark.django_db
+class TestAdminActions:
+    """Test new admin actions for record deletion."""
+
+    def test_delete_records_for_agents_action_exists(self):
+        """Test that delete_records_for_agents action is available."""
+        admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
+        assert hasattr(admin_obj, "delete_records_for_agents")
+        assert "delete_records_for_agents" in admin_obj.actions
+
+    def test_delete_records_for_paths_action_exists(self):
+        """Test that delete_records_for_paths action is available."""
+        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
+        assert hasattr(admin_obj, "delete_records_for_paths")
+        assert "delete_records_for_paths" in admin_obj.actions
+
+    def test_delete_records_for_users_action_exists(self):
+        """Test that delete_records_for_users action is available."""
+        admin_obj = audit_admin.LogUserAdmin(LogUser, site)
+        assert hasattr(admin_obj, "delete_records_for_users")
+        assert "delete_records_for_users" in admin_obj.actions
+
+    def test_delete_records_for_agents_functionality(self):
+        """Test delete_records_for_agents action functionality."""
+        # Create test data
+        user_agent1 = LogUserAgentFactory()
+        user_agent2 = LogUserAgentFactory()
+
+        # Create access logs for both user agents
+        log1 = AccessLogFactory(user_agent_normalized=user_agent1)  # noqa: F841
+        log2 = AccessLogFactory(user_agent_normalized=user_agent1)  # noqa: F841
+        log3 = AccessLogFactory(user_agent_normalized=user_agent2)  # noqa: F841
+
+        # Verify initial state
+        assert AccessLog.objects.filter(user_agent_normalized=user_agent1).count() == 2
+        assert AccessLog.objects.filter(user_agent_normalized=user_agent2).count() == 1
+
+        # Create admin and mock request
+        admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
+        mock_request = types.SimpleNamespace()
+        mock_request._messages = []
+
+        # Mock the messages framework
+        from django.contrib import messages
+
+        def mock_success(request, message):
+            request._messages.append(("success", message))
+
+        def mock_warning(request, message):
+            request._messages.append(("warning", message))
+
+        original_success = messages.success
+        original_warning = messages.warning
+        messages.success = mock_success
+        messages.warning = mock_warning
+
+        try:
+            # Test the action with user_agent1
+            queryset = LogUserAgent.objects.filter(id=user_agent1.id)
+            admin_obj.delete_records_for_agents(mock_request, queryset)
+
+            # Verify deletion
+            assert (
+                AccessLog.objects.filter(user_agent_normalized=user_agent1).count() == 0
+            )
+            assert (
+                AccessLog.objects.filter(user_agent_normalized=user_agent2).count() == 1
+            )
+
+            # Verify success message
+            assert len(mock_request._messages) == 1
+            assert mock_request._messages[0][0] == "success"
+            assert (
+                "Successfully deleted 2 access log records"
+                in mock_request._messages[0][1]
+            )
+
+        finally:
+            # Restore original methods
+            messages.success = original_success
+            messages.warning = original_warning
+
+    def test_delete_records_for_paths_functionality(self):
+        """Test delete_records_for_paths action functionality."""
+        # Create test data
+        path1 = LogPathFactory()
+        path2 = LogPathFactory()
+
+        # Create access logs for both paths
+        log1 = AccessLogFactory(path=path1)  # noqa: F841
+        log2 = AccessLogFactory(path=path1)  # noqa: F841
+        log3 = AccessLogFactory(path=path2)  # noqa: F841
+
+        # Verify initial state
+        assert AccessLog.objects.filter(path=path1).count() == 2
+        assert AccessLog.objects.filter(path=path2).count() == 1
+
+        # Create admin and mock request
+        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
+        mock_request = types.SimpleNamespace()
+        mock_request._messages = []
+
+        # Mock the messages framework
+        from django.contrib import messages
+
+        def mock_success(request, message):
+            request._messages.append(("success", message))
+
+        def mock_warning(request, message):
+            request._messages.append(("warning", message))
+
+        original_success = messages.success
+        original_warning = messages.warning
+        messages.success = mock_success
+        messages.warning = mock_warning
+
+        try:
+            # Test the action with path1
+            queryset = LogPath.objects.filter(id=path1.id)
+            admin_obj.delete_records_for_paths(mock_request, queryset)
+
+            # Verify deletion
+            assert AccessLog.objects.filter(path=path1).count() == 0
+            assert AccessLog.objects.filter(path=path2).count() == 1
+
+            # Verify success message
+            assert len(mock_request._messages) == 1
+            assert mock_request._messages[0][0] == "success"
+            assert (
+                "Successfully deleted 2 access log records"
+                in mock_request._messages[0][1]
+            )
+
+        finally:
+            # Restore original methods
+            messages.success = original_success
+            messages.warning = original_warning
+
+    def test_delete_records_for_users_functionality(self):
+        """Test delete_records_for_users action functionality."""
+        # Create test data
+        user1 = LogUserFactory()
+        user2 = LogUserFactory()
+
+        # Create access logs for both users
+        log1 = AccessLogFactory(user=user1)  # noqa: F841
+        log2 = AccessLogFactory(user=user1)  # noqa: F841
+        log3 = AccessLogFactory(user=user2)  # noqa: F841
+
+        # Verify initial state
+        assert AccessLog.objects.filter(user=user1).count() == 2
+        assert AccessLog.objects.filter(user=user2).count() == 1
+
+        # Create admin and mock request
+        admin_obj = audit_admin.LogUserAdmin(LogUser, site)
+        mock_request = types.SimpleNamespace()
+        mock_request._messages = []
+
+        # Mock the messages framework
+        from django.contrib import messages
+
+        def mock_success(request, message):
+            request._messages.append(("success", message))
+
+        def mock_warning(request, message):
+            request._messages.append(("warning", message))
+
+        original_success = messages.success
+        original_warning = messages.warning
+        messages.success = mock_success
+        messages.warning = mock_warning
+
+        try:
+            # Test the action with user1
+            queryset = LogUser.objects.filter(id=user1.id)
+            admin_obj.delete_records_for_users(mock_request, queryset)
+
+            # Verify deletion
+            assert AccessLog.objects.filter(user=user1).count() == 0
+            assert AccessLog.objects.filter(user=user2).count() == 1
+
+            # Verify success message
+            assert len(mock_request._messages) == 1
+            assert mock_request._messages[0][0] == "success"
+            assert (
+                "Successfully deleted 2 access log records"
+                in mock_request._messages[0][1]
+            )
+
+        finally:
+            # Restore original methods
+            messages.success = original_success
+            messages.warning = original_warning
+
+    def test_admin_actions_no_records_to_delete(self):
+        """Test admin actions when no records exist to delete."""
+        # Create test objects without associated access logs
+        user_agent = LogUserAgentFactory()
+        path = LogPathFactory()  # noqa: F841
+        user = LogUserFactory()  # noqa: F841
+
+        # Mock request and messages
+        mock_request = types.SimpleNamespace()
+        mock_request._messages = []
+
+        from django.contrib import messages
+
+        def mock_warning(request, message):
+            request._messages.append(("warning", message))
+
+        original_warning = messages.warning
+        messages.warning = mock_warning
+
+        try:
+            # Test user agent action
+            admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
+            queryset = LogUserAgent.objects.filter(id=user_agent.id)
+            admin_obj.delete_records_for_agents(mock_request, queryset)
+
+            # Should get warning message
+            assert len(mock_request._messages) == 1
+            assert mock_request._messages[0][0] == "warning"
+            assert "No access log records found" in mock_request._messages[0][1]
+
+        finally:
+            # Restore original method
+            messages.warning = original_warning
+
+
+@pytest.mark.django_db
+class TestAdminInterfaceChanges:
+    """Test admin interface modifications for exclusion fields."""
+
+    def test_loguseragent_admin_list_display_includes_exclude_agent(self):
+        """Test that LogUserAgentAdmin includes exclude_agent in list_display."""
+        admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
+        assert "exclude_agent" in admin_obj.list_display
+
+    def test_loguseragent_admin_list_filter_includes_exclude_agent(self):
+        """Test that LogUserAgentAdmin includes exclude_agent in list_filter."""
+        admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
+        assert "exclude_agent" in admin_obj.list_filter
+
+    def test_loguseragent_admin_exclude_agent_not_readonly(self):
+        """Test that exclude_agent is not in readonly_fields (should be editable)."""
+        admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
+        assert "exclude_agent" not in admin_obj.readonly_fields
+
+    def test_logpath_admin_list_display_includes_exclude_path(self):
+        """Test that LogPathAdmin includes exclude_path in list_display."""
+        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
+        assert "exclude_path" in admin_obj.list_display
+
+    def test_logpath_admin_list_filter_includes_exclude_path(self):
+        """Test that LogPathAdmin includes exclude_path in list_filter."""
+        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
+        assert "exclude_path" in admin_obj.list_filter
+
+    def test_logpath_admin_exclude_path_not_readonly_for_existing_objects(self):
+        """Test that exclude_path is not readonly for existing objects."""
+        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
+        path = LogPathFactory()
+        readonly_fields = admin_obj.get_readonly_fields(None, obj=path)
+        assert "exclude_path" not in readonly_fields
+
+
+@pytest.mark.django_db
+class TestBackwardCompatibility:
+    """Test backward compatibility with settings-based exclusion."""
+
+    def test_settings_based_bot_exclusion_still_works(self, settings):
+        """Test that AUDIT_LOG_EXCLUDE_BOTS setting still works when database field is False."""
+        settings.AUDIT_LOG_EXCLUDE_BOTS = True
+
+        # Create a bot user agent with exclude_agent=False
+        user_agent = LogUserAgentFactory(is_bot=True, exclude_agent=False)
+
+        # Create a mock request
+        request = HttpRequest()
+        request.path = "/test/path"
+        request.method = "GET"
+        request.META = {
+            "HTTP_USER_AGENT": user_agent.user_agent,
+            "REMOTE_ADDR": "127.0.0.1",
+        }
+        request.user = types.SimpleNamespace(
+            is_anonymous=True, pk=0, get_username=lambda: "anonymous"
+        )
+        request.session = types.SimpleNamespace(session_key="test_session")
+
+        # Mock the user agent lookup
+        original_method = LogUserAgent.from_user_agent_string
+        LogUserAgent.from_user_agent_string = classmethod(lambda cls, ua: user_agent)
+
+        try:
+            # Should still be excluded due to settings
+            result = AccessLog.from_request(request)
+            assert result is None
+        finally:
+            LogUserAgent.from_user_agent_string = original_method
+
+    def test_database_exclusion_overrides_settings(self, settings):
+        """Test that database exclude_agent=True works even when AUDIT_LOG_EXCLUDE_BOTS=False."""
+        settings.AUDIT_LOG_EXCLUDE_BOTS = False
+
+        # Create a non-bot user agent with exclude_agent=True
+        user_agent = LogUserAgentFactory(is_bot=False, exclude_agent=True)
+
+        # Create a mock request
+        request = HttpRequest()
+        request.path = "/test/path"
+        request.method = "GET"
+        request.META = {
+            "HTTP_USER_AGENT": user_agent.user_agent,
+            "REMOTE_ADDR": "127.0.0.1",
+        }
+        request.user = types.SimpleNamespace(
+            is_anonymous=True, pk=0, get_username=lambda: "anonymous"
+        )
+        request.session = types.SimpleNamespace(session_key="test_session")
+
+        # Mock the user agent lookup
+        original_method = LogUserAgent.from_user_agent_string
+        LogUserAgent.from_user_agent_string = classmethod(lambda cls, ua: user_agent)
+
+        try:
+            # Should be excluded due to database setting
+            result = AccessLog.from_request(request)
+            assert result is None
+        finally:
+            LogUserAgent.from_user_agent_string = original_method

@@ -19,7 +19,7 @@ from .models import (
 )
 
 try:
-    from rangefilter.filters import DateRangeFilter
+    from rangefilter.filters import DateRangeFilter  # type: ignore
 
     HAS_RANGE_FILTER = True
 except ImportError:
@@ -429,9 +429,39 @@ class AccessLogAdmin(ReadOnlyAdmin):
 class LogPathAdmin(ReadOnlyAdmin):
     """Admin class for LogPath model."""
 
-    list_display = ("path",)
+    list_display = ("path", "exclude_path")
+    list_filter = ("exclude_path",)
     search_fields = ("path",)
     readonly_fields = ("path",)
+    actions = ["delete_records_for_paths"]
+
+    def get_readonly_fields(self, request, obj=None):
+        """Make exclude_path editable for existing objects, but keep path readonly."""
+        if obj:  # Editing an existing object
+            return ("path",)  # Only path is readonly
+        else:  # Adding a new object (shouldn't happen due to ReadOnlyAdmin)
+            return ("path", "exclude_path")
+
+    @admin.action(description="Delete access log records for selected paths")
+    def delete_records_for_paths(self, request, queryset):
+        """Delete all AccessLog records for the selected paths."""
+        from django.contrib import messages
+
+        total_deleted = 0
+        for path in queryset:
+            count, _ = AccessLog.objects.filter(path=path).delete()
+            total_deleted += count
+
+        if total_deleted > 0:
+            messages.success(
+                request,
+                f"Successfully deleted {total_deleted} access log records for {queryset.count()} path(s).",
+            )
+        else:
+            messages.warning(
+                request,
+                f"No access log records found for the selected {queryset.count()} path(s).",
+            )
 
 
 class LogSessionKeyAdmin(ReadOnlyAdmin):
@@ -542,19 +572,48 @@ class LogUserAdmin(ReadOnlyAdmin):
     else:
         list_filter = (ActivityLevelFilter, MultipleIPFilter)
 
-    actions = ["clear_anonymous_logs"]
+    actions = ["clear_anonymous_logs", "delete_records_for_users"]
 
     @admin.action(description="Delete all logs for anonymous user")
     def clear_anonymous_logs(self, request, queryset):
         from django.contrib import messages
+
         from .models import AccessLog
+
         # Only allow this action for the anonymous user
         anonymous_users = queryset.filter(id=0)
         if not anonymous_users.exists():
-            self.message_user(request, "No anonymous user selected.", level=messages.WARNING)
+            self.message_user(
+                request, "No anonymous user selected.", level=messages.WARNING
+            )
             return
         count, _ = AccessLog.objects.filter(user_id=0).delete()
-        self.message_user(request, f"Deleted {count} access logs for anonymous user.", level=messages.SUCCESS)
+        self.message_user(
+            request,
+            f"Deleted {count} access logs for anonymous user.",
+            level=messages.SUCCESS,
+        )
+
+    @admin.action(description="Delete access log records for selected users")
+    def delete_records_for_users(self, request, queryset):
+        """Delete all AccessLog records for the selected users."""
+        from django.contrib import messages
+
+        total_deleted = 0
+        for user in queryset:
+            count, _ = AccessLog.objects.filter(user=user).delete()
+            total_deleted += count
+
+        if total_deleted > 0:
+            messages.success(
+                request,
+                f"Successfully deleted {total_deleted} access log records for {queryset.count()} user(s).",
+            )
+        else:
+            messages.warning(
+                request,
+                f"No access log records found for the selected {queryset.count()} user(s).",
+            )
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -1109,6 +1168,7 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         "operating_system_version",
         "device_type",
         "is_bot",
+        "exclude_agent",
         "usage_count",
         "unique_users_count",
     )
@@ -1117,6 +1177,7 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         "operating_system",
         "device_type",
         "is_bot",
+        "exclude_agent",
         "operating_system_version",
     )
     search_fields = ("user_agent", "browser", "operating_system")
@@ -1131,6 +1192,30 @@ class LogUserAgentAdmin(ReadOnlyAdmin):
         "usage_details",
         "related_users",
     )
+    actions = ["delete_records_for_agents"]
+
+    @admin.action(description="Delete access log records for selected user agents")
+    def delete_records_for_agents(self, request, queryset):
+        """Delete all AccessLog records for the selected user agents."""
+        from django.contrib import messages
+
+        total_deleted = 0
+        for user_agent in queryset:
+            count, _ = AccessLog.objects.filter(
+                user_agent_normalized=user_agent
+            ).delete()
+            total_deleted += count
+
+        if total_deleted > 0:
+            messages.success(
+                request,
+                f"Successfully deleted {total_deleted} access log records for {queryset.count()} user agent(s).",
+            )
+        else:
+            messages.warning(
+                request,
+                f"No access log records found for the selected {queryset.count()} user agent(s).",
+            )
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
