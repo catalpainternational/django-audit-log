@@ -961,3 +961,413 @@ class TestBackwardCompatibility:
             assert result is None
         finally:
             LogUserAgent.from_user_agent_string = original_method
+
+
+@pytest.mark.django_db
+class TestDetailPageActions:
+    """Test detail page actions functionality."""
+
+    def test_detail_actions_mixin_get_detail_actions_default(self):
+        """Test that DetailActionsAdminMixin returns empty list by default."""
+        from django_audit_log.admin import DetailActionsAdminMixin
+        
+        class TestAdmin(DetailActionsAdminMixin):
+            pass
+        
+        admin_obj = TestAdmin()
+        obj = LogUserFactory()
+        actions = admin_obj.get_detail_actions(obj)
+        assert actions == []
+
+    def test_loguser_admin_detail_actions(self):
+        """Test that LogUserAdmin provides detail actions."""
+        admin_obj = audit_admin.LogUserAdmin(LogUser, site)
+        user = LogUserFactory()
+        
+        # Mock request with permissions
+        import types
+        mock_request = types.SimpleNamespace()
+        mock_request.user = types.SimpleNamespace()
+        mock_request.user.has_perm = lambda perm: True
+        mock_request.user.is_superuser = False
+        admin_obj.request = mock_request
+        
+        actions = admin_obj.get_detail_actions(user)
+        assert len(actions) == 1
+        assert actions[0]['name'] == 'delete_logs'
+        assert 'Delete All Logs' in actions[0]['label']
+        assert actions[0]['css_class'] == 'deletelink'
+        assert actions[0]['confirm'] is True
+
+    def test_logpath_admin_detail_actions_excluded(self):
+        """Test that LogPathAdmin provides correct actions for excluded path."""
+        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
+        path = LogPathFactory(exclude_path=True)
+        
+        # Mock request with permissions
+        import types
+        mock_request = types.SimpleNamespace()
+        mock_request.user = types.SimpleNamespace()
+        mock_request.user.has_perm = lambda perm: True
+        mock_request.user.is_superuser = False
+        admin_obj.request = mock_request
+        
+        actions = admin_obj.get_detail_actions(path)
+        assert len(actions) == 2
+        
+        # Find delete action
+        delete_action = next(a for a in actions if a['name'] == 'delete_logs')
+        assert 'Delete All Logs' in delete_action['label']
+        assert delete_action['css_class'] == 'deletelink'
+        
+        # Find include action
+        include_action = next(a for a in actions if a['name'] == 'include_path')
+        assert 'Include This Path' in include_action['label']
+        assert include_action['css_class'] == 'addlink'
+        assert include_action['confirm'] is False
+
+    def test_logpath_admin_detail_actions_included(self):
+        """Test that LogPathAdmin provides correct actions for included path."""
+        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
+        path = LogPathFactory(exclude_path=False)
+        
+        # Mock request with permissions
+        import types
+        mock_request = types.SimpleNamespace()
+        mock_request.user = types.SimpleNamespace()
+        mock_request.user.has_perm = lambda perm: True
+        mock_request.user.is_superuser = False
+        admin_obj.request = mock_request
+        
+        actions = admin_obj.get_detail_actions(path)
+        assert len(actions) == 2
+        
+        # Find exclude action
+        exclude_action = next(a for a in actions if a['name'] == 'exclude_path')
+        assert 'Exclude This Path' in exclude_action['label']
+        assert exclude_action['css_class'] == 'default'
+        assert exclude_action['confirm'] is True
+
+    def test_loguseragent_admin_detail_actions_excluded(self):
+        """Test that LogUserAgentAdmin provides correct actions for excluded agent."""
+        admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
+        agent = LogUserAgentFactory(exclude_agent=True, browser="Chrome", browser_version="91.0")
+        
+        # Mock request with permissions
+        import types
+        mock_request = types.SimpleNamespace()
+        mock_request.user = types.SimpleNamespace()
+        mock_request.user.has_perm = lambda perm: True
+        mock_request.user.is_superuser = False
+        admin_obj.request = mock_request
+        
+        actions = admin_obj.get_detail_actions(agent)
+        assert len(actions) == 2
+        
+        # Find include action
+        include_action = next(a for a in actions if a['name'] == 'include_agent')
+        assert 'Include This User Agent' in include_action['label']
+        assert include_action['css_class'] == 'addlink'
+        assert include_action['confirm'] is False
+
+    def test_loguseragent_admin_detail_actions_included(self):
+        """Test that LogUserAgentAdmin provides correct actions for included agent."""
+        admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
+        agent = LogUserAgentFactory(exclude_agent=False, browser="Firefox", browser_version="89.0")
+        
+        # Mock request with permissions
+        import types
+        mock_request = types.SimpleNamespace()
+        mock_request.user = types.SimpleNamespace()
+        mock_request.user.has_perm = lambda perm: True
+        mock_request.user.is_superuser = False
+        admin_obj.request = mock_request
+        
+        actions = admin_obj.get_detail_actions(agent)
+        assert len(actions) == 2
+        
+        # Find exclude action
+        exclude_action = next(a for a in actions if a['name'] == 'exclude_agent')
+        assert 'Exclude This User Agent' in exclude_action['label']
+        assert exclude_action['css_class'] == 'default'
+        assert exclude_action['confirm'] is True
+
+
+@pytest.mark.django_db
+class TestDetailActionHandlers:
+    """Test detail page action handlers."""
+
+    def test_loguser_delete_logs_action_handler(self):
+        """Test LogUserAdmin delete logs action handler."""
+        admin_obj = audit_admin.LogUserAdmin(LogUser, site)
+        user = LogUserFactory()
+        
+        # Create some access logs for the user
+        AccessLogFactory(user=user)
+        AccessLogFactory(user=user)
+        
+        # Verify logs exist
+        assert AccessLog.objects.filter(user=user).count() == 2
+        
+        # Mock request
+        import types
+        from django.contrib import messages
+        mock_request = types.SimpleNamespace()
+        mock_request.path = '/admin/test/'
+        mock_request._messages = []
+        
+        def mock_success(request, message):
+            request._messages.append(("success", message))
+        
+        original_success = messages.success
+        messages.success = mock_success
+        
+        try:
+            # Test the handler (will raise redirect exception in test)
+            try:
+                admin_obj.handle_delete_logs_action(mock_request, user)
+            except Exception:
+                pass  # Expected redirect
+            
+            # Verify logs were deleted
+            assert AccessLog.objects.filter(user=user).count() == 0
+            
+            # Verify success message
+            assert len(mock_request._messages) == 1
+            assert mock_request._messages[0][0] == "success"
+            assert "Successfully deleted 2 access log records" in mock_request._messages[0][1]
+            
+        finally:
+            messages.success = original_success
+
+    def test_logpath_exclude_path_action_handler(self):
+        """Test LogPathAdmin exclude path action handler."""
+        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
+        path = LogPathFactory(exclude_path=False)
+        
+        # Mock request
+        import types
+        from django.contrib import messages
+        mock_request = types.SimpleNamespace()
+        mock_request.path = '/admin/test/'
+        mock_request._messages = []
+        
+        def mock_success(request, message):
+            request._messages.append(("success", message))
+        
+        original_success = messages.success
+        messages.success = mock_success
+        
+        try:
+            # Test the handler
+            try:
+                admin_obj.handle_exclude_path_action(mock_request, path)
+            except Exception:
+                pass  # Expected redirect
+            
+            # Verify path is now excluded
+            path.refresh_from_db()
+            assert path.exclude_path is True
+            
+            # Verify success message
+            assert len(mock_request._messages) == 1
+            assert mock_request._messages[0][0] == "success"
+            assert "is now excluded from logging" in mock_request._messages[0][1]
+            
+        finally:
+            messages.success = original_success
+
+    def test_logpath_include_path_action_handler(self):
+        """Test LogPathAdmin include path action handler."""
+        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
+        path = LogPathFactory(exclude_path=True)
+        
+        # Mock request
+        import types
+        from django.contrib import messages
+        mock_request = types.SimpleNamespace()
+        mock_request.path = '/admin/test/'
+        mock_request._messages = []
+        
+        def mock_success(request, message):
+            request._messages.append(("success", message))
+        
+        original_success = messages.success
+        messages.success = mock_success
+        
+        try:
+            # Test the handler
+            try:
+                admin_obj.handle_include_path_action(mock_request, path)
+            except Exception:
+                pass  # Expected redirect
+            
+            # Verify path is now included
+            path.refresh_from_db()
+            assert path.exclude_path is False
+            
+            # Verify success message
+            assert len(mock_request._messages) == 1
+            assert mock_request._messages[0][0] == "success"
+            assert "is now included in logging" in mock_request._messages[0][1]
+            
+        finally:
+            messages.success = original_success
+
+    def test_loguseragent_exclude_agent_action_handler(self):
+        """Test LogUserAgentAdmin exclude agent action handler."""
+        admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
+        agent = LogUserAgentFactory(exclude_agent=False, browser="Safari")
+        
+        # Mock request
+        import types
+        from django.contrib import messages
+        mock_request = types.SimpleNamespace()
+        mock_request.path = '/admin/test/'
+        mock_request._messages = []
+        
+        def mock_success(request, message):
+            request._messages.append(("success", message))
+        
+        original_success = messages.success
+        messages.success = mock_success
+        
+        try:
+            # Test the handler
+            try:
+                admin_obj.handle_exclude_agent_action(mock_request, agent)
+            except Exception:
+                pass  # Expected redirect
+            
+            # Verify agent is now excluded
+            agent.refresh_from_db()
+            assert agent.exclude_agent is True
+            
+            # Verify success message
+            assert len(mock_request._messages) == 1
+            assert mock_request._messages[0][0] == "success"
+            assert "is now excluded from logging" in mock_request._messages[0][1]
+            
+        finally:
+            messages.success = original_success
+
+    def test_loguseragent_include_agent_action_handler(self):
+        """Test LogUserAgentAdmin include agent action handler."""
+        admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
+        agent = LogUserAgentFactory(exclude_agent=True, browser="Edge")
+        
+        # Mock request
+        import types
+        from django.contrib import messages
+        mock_request = types.SimpleNamespace()
+        mock_request.path = '/admin/test/'
+        mock_request._messages = []
+        
+        def mock_success(request, message):
+            request._messages.append(("success", message))
+        
+        original_success = messages.success
+        messages.success = mock_success
+        
+        try:
+            # Test the handler
+            try:
+                admin_obj.handle_include_agent_action(mock_request, agent)
+            except Exception:
+                pass  # Expected redirect
+            
+            # Verify agent is now included
+            agent.refresh_from_db()
+            assert agent.exclude_agent is False
+            
+            # Verify success message
+            assert len(mock_request._messages) == 1
+            assert mock_request._messages[0][0] == "success"
+            assert "is now included in logging" in mock_request._messages[0][1]
+            
+        finally:
+            messages.success = original_success
+
+
+@pytest.mark.django_db
+class TestDetailActionPermissions:
+    """Test detail page action permissions."""
+
+    def test_detail_actions_respect_permissions(self):
+        """Test that detail actions respect user permissions."""
+        admin_obj = audit_admin.LogUserAdmin(LogUser, site)
+        user = LogUserFactory()
+        
+        # Mock request without permissions
+        import types
+        mock_request = types.SimpleNamespace()
+        mock_request.user = types.SimpleNamespace()
+        mock_request.user.has_perm = lambda perm: False
+        mock_request.user.is_superuser = False
+        admin_obj.request = mock_request
+        
+        actions = admin_obj.get_detail_actions(user)
+        assert len(actions) == 0  # No actions should be available without permissions
+
+    def test_detail_actions_with_permissions(self):
+        """Test that detail actions are available with proper permissions."""
+        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
+        path = LogPathFactory()
+        
+        # Mock request with permissions
+        import types
+        mock_request = types.SimpleNamespace()
+        mock_request.user = types.SimpleNamespace()
+        mock_request.user.has_perm = lambda perm: True
+        mock_request.user.is_superuser = False
+        admin_obj.request = mock_request
+        
+        actions = admin_obj.get_detail_actions(path)
+        assert len(actions) == 2  # Should have both delete and exclude/include actions
+
+
+@pytest.mark.django_db
+class TestDetailActionErrorHandling:
+    """Test error handling in detail page actions."""
+
+    def test_delete_logs_action_handles_database_error(self):
+        """Test that delete logs action handles database errors gracefully."""
+        admin_obj = audit_admin.LogUserAdmin(LogUser, site)
+        user = LogUserFactory()
+        
+        # Mock request
+        import types
+        from django.contrib import messages
+        mock_request = types.SimpleNamespace()
+        mock_request.path = '/admin/test/'
+        mock_request._messages = []
+        
+        def mock_error(request, message):
+            request._messages.append(("error", message))
+        
+        original_error = messages.error
+        messages.error = mock_error
+        
+        # Mock AccessLog.objects.filter to raise an exception
+        original_filter = AccessLog.objects.filter
+        
+        def mock_filter(*args, **kwargs):
+            raise Exception("Database error")
+        
+        AccessLog.objects.filter = mock_filter
+        
+        try:
+            # Test the handler
+            try:
+                admin_obj.handle_delete_logs_action(mock_request, user)
+            except Exception:
+                pass  # Expected redirect
+            
+            # Verify error message
+            assert len(mock_request._messages) == 1
+            assert mock_request._messages[0][0] == "error"
+            assert "Error deleting access log records" in mock_request._messages[0][1]
+            
+        finally:
+            messages.error = original_error
+            AccessLog.objects.filter = original_filter

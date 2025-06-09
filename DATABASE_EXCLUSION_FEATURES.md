@@ -20,15 +20,39 @@ Two new boolean fields have been added to control exclusion behavior:
 - ✅ **New filter**: Filter by excluded/included user agents
 - ✅ **Editable field**: Click to toggle exclusion for any user agent
 - ✅ **New admin action**: "Delete access log records for selected user agents"
+- ✅ **Detail page actions**: Individual record actions for delete logs and toggle exclusion
 
 #### Path Admin (`LogPath`)
 - ✅ **New field in list view**: `exclude_path` column shows exclusion status
 - ✅ **New filter**: Filter by excluded/included paths
 - ✅ **Editable field**: Click to toggle exclusion for any path
 - ✅ **New admin action**: "Delete access log records for selected paths"
+- ✅ **Detail page actions**: Individual record actions for delete logs and toggle exclusion
 
 #### User Admin (`LogUser`)
 - ✅ **New admin action**: "Delete access log records for selected users"
+- ✅ **Detail page actions**: Individual record actions for delete logs
+
+### 3. Detail Page Actions
+
+Each admin detail/change page now includes additional action buttons:
+
+**For Users (`LogUser`):**
+- 🗑️ **Delete All Logs for User**: Removes all access log records for the specific user
+
+**For Paths (`LogPath`):**
+- 🗑️ **Delete All Logs for Path**: Removes all access log records for the specific path
+- 🔄 **Toggle Path Exclusion**: Include/exclude the path from future logging
+
+**For User Agents (`LogUserAgent`):**
+- 🗑️ **Delete All Logs for User Agent**: Removes all access log records for the specific user agent
+- 🔄 **Toggle Agent Exclusion**: Include/exclude the user agent from future logging
+
+**Features:**
+- ✅ **Confirmation dialogs**: Destructive actions require confirmation
+- ✅ **Permission-based**: Actions only appear for users with appropriate permissions
+- ✅ **Success/error messaging**: Clear feedback on action results
+- ✅ **Transaction safety**: Database operations are wrapped in transactions
 
 ## How It Works
 
@@ -69,11 +93,18 @@ Database exclusion takes **precedence** over settings-based exclusion:
 
 ### 1. Managing User Agent Exclusions
 
-**Via Django Admin:**
+**Via Django Admin List View:**
 1. Go to `Django Audit Log → Log User Agents`
 2. Find the user agent you want to exclude
 3. Check the `Exclude Agent` checkbox
 4. Save the changes
+
+**Via Detail Page Actions:**
+1. Go to `Django Audit Log → Log User Agents`
+2. Click on a specific user agent to view its details
+3. Scroll to the "Additional Actions" section at the bottom
+4. Click "Exclude This User Agent from Logging" or "Include This User Agent in Logging"
+5. Click "Delete All Logs for User Agent" to remove historical records (requires confirmation)
 
 **Bulk Operations:**
 1. Select multiple user agents using checkboxes
@@ -82,11 +113,18 @@ Database exclusion takes **precedence** over settings-based exclusion:
 
 ### 2. Managing Path Exclusions
 
-**Via Django Admin:**
+**Via Django Admin List View:**
 1. Go to `Django Audit Log → Log Paths`
 2. Find the path you want to exclude
 3. Check the `Exclude This URL` checkbox
 4. Save the changes
+
+**Via Detail Page Actions:**
+1. Go to `Django Audit Log → Log Paths`
+2. Click on a specific path to view its details
+3. Scroll to the "Additional Actions" section at the bottom
+4. Click "Exclude This Path from Logging" or "Include This Path in Logging"
+5. Click "Delete All Logs for Path" to remove historical records (requires confirmation)
 
 **Bulk Operations:**
 1. Select multiple paths using checkboxes
@@ -95,7 +133,13 @@ Database exclusion takes **precedence** over settings-based exclusion:
 
 ### 3. Managing User Record Cleanup
 
-**Via Django Admin:**
+**Via Detail Page Actions:**
+1. Go to `Django Audit Log → Log Users`
+2. Click on a specific user to view their details
+3. Scroll to the "Additional Actions" section at the bottom
+4. Click "Delete All Logs for User" to remove all records for this user (requires confirmation)
+
+**Via Bulk Operations:**
 1. Go to `Django Audit Log → Log Users`
 2. Select users whose records you want to delete
 3. Choose "Delete access log records for selected users" from actions dropdown

@@ -1,0 +1,78 @@
+{% extends "admin/change_form.html" %}
+
+{% block submit_buttons_bottom %}
+    {{ block.super }}
+    {% if detail_actions %}
+        <div class="detail-actions">
+            <h3>Additional Actions</h3>
+            <div class="detail-actions-buttons">
+                {% for action in detail_actions %}
+                    <button type="submit" 
+                            name="{{ action.name }}" 
+                            class="button {{ action.css_class }}"
+                            {% if action.confirm %}onclick="return confirm('{{ action.confirm_message|escapejs }}')"{% endif %}>
+                        {{ action.label }}
+                    </button>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <style>
+            .detail-actions {
+                margin-top: 20px;
+                padding: 15px;
+                border-top: 1px solid #ddd;
+                background-color: #f8f8f8;
+            }
+            
+            .detail-actions h3 {
+                margin-top: 0;
+                margin-bottom: 15px;
+                color: #333;
+                font-size: 13px;
+                text-transform: uppercase;
+                font-weight: bold;
+            }
+            
+            .detail-actions-buttons button {
+                margin-right: 10px;
+                margin-bottom: 5px;
+                padding: 8px 15px;
+                font-size: 13px;
+                line-height: 15px;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            
+            .detail-actions-buttons .deletelink {
+                background: #ba2121;
+                color: white;
+                border: 1px solid #ba2121;
+            }
+            
+            .detail-actions-buttons .deletelink:hover {
+                background: #a41e1e;
+            }
+            
+            .detail-actions-buttons .default {
+                background: #417690;
+                color: white;
+                border: 1px solid #417690;
+            }
+            
+            .detail-actions-buttons .default:hover {
+                background: #205067;
+            }
+            
+            .detail-actions-buttons .addlink {
+                background: #5b80b2;
+                color: white;
+                border: 1px solid #5b80b2;
+            }
+            
+            .detail-actions-buttons .addlink:hover {
+                background: #4a6b94;
+            }
+        </style>
+    {% endif %}
+{% endblock %} 
