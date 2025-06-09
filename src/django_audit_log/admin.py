@@ -44,19 +44,7 @@ class DetailActionsAdminMixin:
         - confirm_message: confirmation message text
         """
         return []
-    
-    def response_change(self, request, obj):
-        """Handle custom detail page actions."""
-        # Check if any of our custom actions were triggered
-        for action in self.get_detail_actions(obj):
-            if action['name'] in request.POST:
-                method_name = f"handle_{action['name']}_action"
-                if hasattr(self, method_name):
-                    handler = getattr(self, method_name)
-                    return handler(request, obj)
-        
-        # Fall back to default behavior
-        return super().response_change(request, obj)
+
     
     def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
         """Add detail actions to the change form context."""
@@ -504,8 +492,6 @@ class LogPathAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
     list_filter = ("exclude_path",)
     search_fields = ("path",)
     readonly_fields = ("path",)
-    actions = ["delete_records_for_paths"]
-    
     def get_detail_actions(self, obj):
         """Return list of available actions for this path."""
         actions = []
@@ -517,8 +503,7 @@ class LogPathAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
                 'name': 'delete_logs',
                 'label': f'Delete All Logs for Path "{obj.path}"',
                 'css_class': 'deletelink',
-                'confirm': True,
-                'confirm_message': f'Are you sure you want to delete all access logs for path "{obj.path}"? This action cannot be undone.',
+                'url': f'/audit-log/delete-path-logs/{obj.id}/',
             })
         
         # Add exclusion toggle action (always available to change the model)
@@ -527,77 +512,19 @@ class LogPathAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
                 'name': 'include_path',
                 'label': 'Include This Path in Logging',
                 'css_class': 'addlink',
-                'confirm': False,
+                'url': f'/audit-log/toggle-path-exclusion/{obj.id}/',
             })
         else:
             actions.append({
                 'name': 'exclude_path',
                 'label': 'Exclude This Path from Logging',
                 'css_class': 'default',
-                'confirm': True,
-                'confirm_message': f'Are you sure you want to exclude path "{obj.path}" from logging? Future requests to this path will not be logged.',
+                'url': f'/audit-log/toggle-path-exclusion/{obj.id}/',
             })
         
         return actions
     
-    def handle_delete_logs_action(self, request, obj):
-        """Handle deletion of all logs for this path."""
-        try:
-            with transaction.atomic():
-                count, _ = AccessLog.objects.filter(path=obj).delete()
-                
-                if count > 0:
-                    messages.success(
-                        request,
-                        f'Successfully deleted {count} access log records for path "{obj.path}".'
-                    )
-                else:
-                    messages.warning(
-                        request,
-                        f'No access log records found for path "{obj.path}".'
-                    )
-                    
-        except Exception as e:
-            messages.error(
-                request,
-                f'Error deleting access log records for path "{obj.path}": {str(e)}'
-            )
-        
-        return redirect(request.path)
-    
-    def handle_exclude_path_action(self, request, obj):
-        """Handle excluding this path from logging."""
-        try:
-            obj.exclude_path = True
-            obj.save()
-            messages.success(
-                request,
-                f'Path "{obj.path}" is now excluded from logging.'
-            )
-        except Exception as e:
-            messages.error(
-                request,
-                f'Error updating exclusion for path "{obj.path}": {str(e)}'
-            )
-        
-        return redirect(request.path)
-    
-    def handle_include_path_action(self, request, obj):
-        """Handle including this path in logging."""
-        try:
-            obj.exclude_path = False
-            obj.save()
-            messages.success(
-                request,
-                f'Path "{obj.path}" is now included in logging.'
-            )
-        except Exception as e:
-            messages.error(
-                request,
-                f'Error updating exclusion for path "{obj.path}": {str(e)}'
-            )
-        
-        return redirect(request.path)
+
 
     def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
         """Store request for permission checking in detail actions."""
@@ -611,26 +538,7 @@ class LogPathAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         else:  # Adding a new object (shouldn't happen due to ReadOnlyAdmin)
             return ("path", "exclude_path")
 
-    @admin.action(description="Delete access log records for selected paths")
-    def delete_records_for_paths(self, request, queryset):
-        """Delete all AccessLog records for the selected paths."""
-        from django.contrib import messages
 
-        total_deleted = 0
-        for path in queryset:
-            count, _ = AccessLog.objects.filter(path=path).delete()
-            total_deleted += count
-
-        if total_deleted > 0:
-            messages.success(
-                request,
-                f"Successfully deleted {total_deleted} access log records for {queryset.count()} path(s).",
-            )
-        else:
-            messages.warning(
-                request,
-                f"No access log records found for the selected {queryset.count()} path(s).",
-            )
 
 
 class LogSessionKeyAdmin(ReadOnlyAdmin):
@@ -741,7 +649,6 @@ class LogUserAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
     else:
         list_filter = (ActivityLevelFilter, MultipleIPFilter)
 
-    actions = ["clear_anonymous_logs", "delete_records_for_users"]
     
     def get_detail_actions(self, obj):
         """Return list of available actions for this user."""
@@ -754,84 +661,19 @@ class LogUserAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
                 'name': 'delete_logs',
                 'label': f'Delete All Logs for User "{obj.user_name}"',
                 'css_class': 'deletelink',
-                'confirm': True,
-                'confirm_message': f'Are you sure you want to delete all access logs for user "{obj.user_name}"? This action cannot be undone.',
+                'url': f'/audit-log/delete-user-logs/{obj.id}/',
             })
         
         return actions
     
-    def handle_delete_logs_action(self, request, obj):
-        """Handle deletion of all logs for this user."""
-        try:
-            with transaction.atomic():
-                count, _ = AccessLog.objects.filter(user=obj).delete()
-                
-                if count > 0:
-                    messages.success(
-                        request,
-                        f'Successfully deleted {count} access log records for user "{obj.user_name}".'
-                    )
-                else:
-                    messages.warning(
-                        request,
-                        f'No access log records found for user "{obj.user_name}".'
-                    )
-                    
-        except Exception as e:
-            messages.error(
-                request,
-                f'Error deleting access log records for user "{obj.user_name}": {str(e)}'
-            )
-        
-        # Store request for permission checking
-        self.request = request
-        return redirect(request.path)
+
 
     def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
         """Store request for permission checking in detail actions."""
         self.request = request
         return super().changeform_view(request, object_id, form_url, extra_context)
 
-    @admin.action(description="Delete all logs for anonymous user")
-    def clear_anonymous_logs(self, request, queryset):
-        from django.contrib import messages
 
-        from .models import AccessLog
-
-        # Only allow this action for the anonymous user
-        anonymous_users = queryset.filter(id=0)
-        if not anonymous_users.exists():
-            self.message_user(
-                request, "No anonymous user selected.", level=messages.WARNING
-            )
-            return
-        count, _ = AccessLog.objects.filter(user_id=0).delete()
-        self.message_user(
-            request,
-            f"Deleted {count} access logs for anonymous user.",
-            level=messages.SUCCESS,
-        )
-
-    @admin.action(description="Delete access log records for selected users")
-    def delete_records_for_users(self, request, queryset):
-        """Delete all AccessLog records for the selected users."""
-        from django.contrib import messages
-
-        total_deleted = 0
-        for user in queryset:
-            count, _ = AccessLog.objects.filter(user=user).delete()
-            total_deleted += count
-
-        if total_deleted > 0:
-            messages.success(
-                request,
-                f"Successfully deleted {total_deleted} access log records for {queryset.count()} user(s).",
-            )
-        else:
-            messages.warning(
-                request,
-                f"No access log records found for the selected {queryset.count()} user(s).",
-            )
 
     def get_queryset(self, request):
         """Optimize queryset with prefetch_related and annotations."""
@@ -1423,7 +1265,7 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         "usage_details",
         "related_users",
     )
-    actions = ["delete_records_for_agents"]
+
     
     def get_readonly_fields(self, request, obj=None):
         """Make exclude_agent editable for existing objects."""
@@ -1455,8 +1297,7 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
                 'name': 'delete_logs',
                 'label': f'Delete All Logs for User Agent "{agent_description}"',
                 'css_class': 'deletelink',
-                'confirm': True,
-                'confirm_message': f'Are you sure you want to delete all access logs for user agent "{agent_description}"? This action cannot be undone.',
+                'url': f'/audit-log/delete-user-agent-logs/{obj.id}/',
             })
         
         # Add exclusion toggle action (always available to change the model)
@@ -1465,119 +1306,26 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
                 'name': 'include_agent',
                 'label': 'Include This User Agent in Logging',
                 'css_class': 'addlink',
-                'confirm': False,
+                'url': f'/audit-log/toggle-user-agent-exclusion/{obj.id}/',
             })
         else:
             actions.append({
                 'name': 'exclude_agent',
                 'label': 'Exclude This User Agent from Logging',
                 'css_class': 'default',
-                'confirm': True,
-                'confirm_message': f'Are you sure you want to exclude user agent "{agent_description}" from logging? Future requests from this user agent will not be logged.',
+                'url': f'/audit-log/toggle-user-agent-exclusion/{obj.id}/',
             })
         
         return actions
     
-    def handle_delete_logs_action(self, request, obj):
-        """Handle deletion of all logs for this user agent."""
-        try:
-            with transaction.atomic():
-                count, _ = AccessLog.objects.filter(user_agent_normalized=obj).delete()
-                
-                agent_description = f"{obj.browser or 'Unknown'}"
-                if obj.browser_version:
-                    agent_description += f" {obj.browser_version}"
-                
-                if count > 0:
-                    messages.success(
-                        request,
-                        f'Successfully deleted {count} access log records for user agent "{agent_description}".'
-                    )
-                else:
-                    messages.warning(
-                        request,
-                        f'No access log records found for user agent "{agent_description}".'
-                    )
-                    
-        except Exception as e:
-            messages.error(
-                request,
-                f'Error deleting access log records for user agent: {str(e)}'
-            )
-        
-        return redirect(request.path)
-    
-    def handle_exclude_agent_action(self, request, obj):
-        """Handle excluding this user agent from logging."""
-        try:
-            obj.exclude_agent = True
-            obj.save()
-            
-            agent_description = f"{obj.browser or 'Unknown'}"
-            if obj.browser_version:
-                agent_description += f" {obj.browser_version}"
-                
-            messages.success(
-                request,
-                f'User agent "{agent_description}" is now excluded from logging.'
-            )
-        except Exception as e:
-            messages.error(
-                request,
-                f'Error updating exclusion for user agent: {str(e)}'
-            )
-        
-        return redirect(request.path)
-    
-    def handle_include_agent_action(self, request, obj):
-        """Handle including this user agent in logging."""
-        try:
-            obj.exclude_agent = False
-            obj.save()
-            
-            agent_description = f"{obj.browser or 'Unknown'}"
-            if obj.browser_version:
-                agent_description += f" {obj.browser_version}"
-                
-            messages.success(
-                request,
-                f'User agent "{agent_description}" is now included in logging.'
-            )
-        except Exception as e:
-            messages.error(
-                request,
-                f'Error updating exclusion for user agent: {str(e)}'
-            )
-        
-        return redirect(request.path)
+
 
     def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
         """Store request for permission checking in detail actions."""
         self.request = request
         return super().changeform_view(request, object_id, form_url, extra_context)
 
-    @admin.action(description="Delete access log records for selected user agents")
-    def delete_records_for_agents(self, request, queryset):
-        """Delete all AccessLog records for the selected user agents."""
-        from django.contrib import messages
 
-        total_deleted = 0
-        for user_agent in queryset:
-            count, _ = AccessLog.objects.filter(
-                user_agent_normalized=user_agent
-            ).delete()
-            total_deleted += count
-
-        if total_deleted > 0:
-            messages.success(
-                request,
-                f"Successfully deleted {total_deleted} access log records for {queryset.count()} user agent(s).",
-            )
-        else:
-            messages.warning(
-                request,
-                f"No access log records found for the selected {queryset.count()} user agent(s).",
-            )
 
     def get_queryset(self, request):
         """Optimize queryset with prefetch_related and annotations."""
