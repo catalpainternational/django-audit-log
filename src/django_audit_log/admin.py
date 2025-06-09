@@ -110,25 +110,25 @@ class BrowserTypeFilter(SimpleListFilter):
         value = self.value()
 
         if value == "chrome":
-            return queryset.filter(user_agent_normalized__browser="Chrome").exclude(
+            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Chrome").exclude(
                 user_agent_normalized__browser="Chromium"
             )
         elif value == "firefox":
-            return queryset.filter(user_agent_normalized__browser="Firefox")
+            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Firefox")
         elif value == "safari":
-            return queryset.filter(user_agent_normalized__browser="Safari").exclude(
+            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Safari").exclude(
                 user_agent_normalized__browser="Chrome"
             )
         elif value == "edge":
-            return queryset.filter(user_agent_normalized__browser="Edge")
+            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Edge")
         elif value == "ie":
-            return queryset.filter(user_agent_normalized__browser="Internet Explorer")
+            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Internet Explorer")
         elif value == "opera":
-            return queryset.filter(user_agent_normalized__browser="Opera")
+            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Opera")
         elif value == "mobile":
-            return queryset.filter(user_agent_normalized__device_type="Mobile")
+            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__device_type="Mobile")
         elif value == "bots":
-            return queryset.filter(user_agent_normalized__is_bot=True)
+            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__is_bot=True)
         elif value == "other":
             major_browsers = [
                 "Chrome",
@@ -138,7 +138,7 @@ class BrowserTypeFilter(SimpleListFilter):
                 "Internet Explorer",
                 "Opera",
             ]
-            return queryset.exclude(user_agent_normalized__browser__in=major_browsers)
+            return queryset.select_related('user_agent_normalized').exclude(user_agent_normalized__browser__in=major_browsers)
 
 
 class DeviceTypeFilter(SimpleListFilter):
@@ -161,13 +161,13 @@ class DeviceTypeFilter(SimpleListFilter):
 
         value = self.value()
         if value == "mobile":
-            return queryset.filter(user_agent_normalized__device_type="Mobile")
+            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__device_type="Mobile")
         elif value == "tablet":
-            return queryset.filter(user_agent_normalized__device_type="Tablet")
+            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__device_type="Tablet")
         elif value == "bot":
-            return queryset.filter(user_agent_normalized__is_bot=True)
+            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__is_bot=True)
         elif value == "desktop":
-            return queryset.filter(
+            return queryset.select_related('user_agent_normalized').filter(
                 user_agent_normalized__device_type="Desktop",
                 user_agent_normalized__is_bot=False,
             )
@@ -210,6 +210,20 @@ class AccessLogAdmin(ReadOnlyAdmin):
         "ip",
         "timestamp",
     )
+
+    def get_queryset(self, request):
+        """Optimize queryset with select_related to reduce database queries."""
+        qs = super().get_queryset(request)
+        qs = qs.select_related(
+            'path',
+            'referrer', 
+            'response_url',
+            'user_agent_normalized',
+            'user',
+            'session_key',
+            'ip'
+        )
+        return qs
 
     def browser_type(self, obj):
         """Return a simplified browser type."""
@@ -807,8 +821,14 @@ class LogUserAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
             )
 
     def get_queryset(self, request):
+        """Optimize queryset with prefetch_related and annotations."""
         qs = super().get_queryset(request)
-        qs = qs.annotate(
+        qs = qs.prefetch_related(
+            models.Prefetch(
+                'accesslog_set',
+                queryset=AccessLog.objects.select_related('ip', 'user_agent_normalized')
+            )
+        ).annotate(
             access_count=models.Count("accesslog"),
             ip_count=models.Count("accesslog__ip", distinct=True),
             last_activity=models.Max("accesslog__timestamp"),
@@ -844,6 +864,7 @@ class LogUserAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         user_agents = (
             AccessLog.objects.filter(user=obj)
             .exclude(user_agent_normalized__isnull=True)
+            .select_related('user_agent_normalized')
             .values(
                 "user_agent_normalized__browser",
                 "user_agent_normalized__operating_system",
@@ -979,7 +1000,7 @@ class LogUserAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
 
     def recent_activity(self, obj):
         """Show the most recent activity for this user."""
-        recent_logs = AccessLog.objects.filter(user=obj).order_by("-timestamp")[:10]
+        recent_logs = AccessLog.objects.filter(user=obj).select_related('path', 'user_agent_normalized').order_by("-timestamp")[:10]
 
         if not recent_logs:
             return "No recent activity"
@@ -1226,8 +1247,14 @@ class LogIpAddressAdmin(ReadOnlyAdmin):
     readonly_fields = ("address", "user_agent_stats")
 
     def get_queryset(self, request):
+        """Optimize queryset with prefetch_related and annotations."""
         qs = super().get_queryset(request)
-        qs = qs.annotate(
+        qs = qs.prefetch_related(
+            models.Prefetch(
+                'accesslog_set',
+                queryset=AccessLog.objects.select_related('user', 'user_agent_normalized')
+            )
+        ).annotate(
             request_count=models.Count("accesslog"),
             user_count=models.Count("accesslog__user", distinct=True),
         )
@@ -1530,8 +1557,14 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
             )
 
     def get_queryset(self, request):
+        """Optimize queryset with prefetch_related and annotations."""
         qs = super().get_queryset(request)
-        qs = qs.annotate(
+        qs = qs.prefetch_related(
+            models.Prefetch(
+                'access_logs',
+                queryset=AccessLog.objects.select_related('user', 'ip', 'path')
+            )
+        ).annotate(
             usage_count=models.Count("access_logs"),
             unique_users=models.Count("access_logs__user", distinct=True),
             # Add semantic version ordering
@@ -1574,6 +1607,7 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         # Get user count and IP count
         user_count = (
             AccessLog.objects.filter(user_agent_normalized=obj)
+            .select_related('user')
             .values("user")
             .distinct()
             .count()
@@ -1581,6 +1615,7 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
 
         ip_count = (
             AccessLog.objects.filter(user_agent_normalized=obj)
+            .select_related('ip')
             .values("ip")
             .distinct()
             .count()
@@ -1589,6 +1624,7 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         # Get top 10 paths accessed with this user agent
         top_paths = (
             AccessLog.objects.filter(user_agent_normalized=obj)
+            .select_related('path')
             .values("path__path")
             .annotate(count=Count("path"))
             .order_by("-count")[:10]
@@ -1651,6 +1687,7 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         # Get users who have used this user agent with their usage counts
         users = (
             AccessLog.objects.filter(user_agent_normalized=obj)
+            .select_related('user')
             .values("user__id", "user__user_name")
             .annotate(usage_count=Count("id"), last_used=models.Max("timestamp"))
             .order_by("-usage_count")
