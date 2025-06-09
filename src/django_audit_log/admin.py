@@ -78,10 +78,23 @@ class ReadOnlyAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
-        return False
+        # Allow change permission for actions to work, but individual objects 
+        # will be read-only through get_readonly_fields()
+        if obj is None and hasattr(request, 'user'):  # This is for the changelist (needed for actions)
+            return request.user.is_superuser or request.user.has_perm(f'{self.opts.app_label}.change_{self.opts.model_name}')
+        return False  # No editing of individual objects or when no user available
 
     def has_delete_permission(self, request, obj=None):
-        return False
+        # Allow delete permission for actions to work
+        if obj is None and hasattr(request, 'user'):  # This is for the changelist (needed for actions)
+            return request.user.is_superuser or request.user.has_perm(f'{self.opts.app_label}.delete_{self.opts.model_name}')
+        return False  # No deleting of individual objects or when no user available
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Make all fields read-only to prevent editing."""
+        if obj:  # Editing an existing object
+            return [field.name for field in self.model._meta.fields]
+        return super().get_readonly_fields(request, obj)
 
 
 class BrowserTypeFilter(SimpleListFilter):
@@ -1411,6 +1424,16 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         "related_users",
     )
     actions = ["delete_records_for_agents"]
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Make exclude_agent editable for existing objects."""
+        if obj:  # Editing an existing object
+            # Get all fields except exclude_agent
+            all_fields = [field.name for field in self.model._meta.fields]
+            readonly_fields = [f for f in all_fields if f != 'exclude_agent']
+            return readonly_fields
+        else:  # Adding a new object (shouldn't happen due to ReadOnlyAdmin)
+            return list(self.readonly_fields)
     
     def get_detail_actions(self, obj):
         """Return list of available actions for this user agent."""
