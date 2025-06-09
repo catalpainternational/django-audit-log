@@ -1,5 +1,34 @@
 # Database-Based Exclusion Features
 
+This document details the implementation of database-configurable exclusion rules for the Django Audit Log system, replacing or supplementing the settings-based exclusion patterns.
+
+## Architecture Overview
+
+### Detail Page Actions vs Bulk Actions
+
+**Design Decision: We use individual detail page actions instead of bulk admin actions.**
+
+**Rationale:**
+- **Precision**: Each record can be individually reviewed before exclusion/deletion
+- **Safety**: Reduces risk of accidentally excluding/deleting large datasets
+- **User Experience**: Clear context about what will be affected
+- **Permissions**: Granular permission checking per record
+- **Audit Trail**: Better tracking of who excluded/deleted what and when
+
+**What this means:**
+- ✅ Actions available on individual record detail pages (e.g., `/admin/django_audit_log/logpath/123/change/`)
+- ❌ No bulk actions in the admin list view for exclusion/deletion
+- ✅ Bulk operations still possible via Django's built-in delete actions
+- ✅ Custom management commands for bulk operations when needed
+
+### Implementation Details
+
+The detail page actions are implemented via:
+1. **DetailActionsAdminMixin**: Provides the framework for adding action buttons to change forms
+2. **Admin Templates**: Custom templates render the action buttons in the change form
+3. **changeform_view Override**: Handles POST requests from action buttons
+4. **Permission Checking**: Each action verifies user permissions before execution
+
 ## Overview
 
 Django Audit Log now supports database-configurable exclusion rules in addition to the existing settings-based exclusion. This allows administrators to manage exclusion rules through the Django Admin interface without requiring code changes or deployments.

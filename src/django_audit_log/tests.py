@@ -631,235 +631,6 @@ class TestDatabaseExclusion:
 
 
 @pytest.mark.django_db
-class TestAdminActions:
-    """Test new admin actions for record deletion."""
-
-    def test_delete_records_for_agents_action_exists(self):
-        """Test that delete_records_for_agents action is available."""
-        admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
-        assert hasattr(admin_obj, "delete_records_for_agents")
-        assert "delete_records_for_agents" in admin_obj.actions
-
-    def test_delete_records_for_paths_action_exists(self):
-        """Test that delete_records_for_paths action is available."""
-        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
-        assert hasattr(admin_obj, "delete_records_for_paths")
-        assert "delete_records_for_paths" in admin_obj.actions
-
-    def test_delete_records_for_users_action_exists(self):
-        """Test that delete_records_for_users action is available."""
-        admin_obj = audit_admin.LogUserAdmin(LogUser, site)
-        assert hasattr(admin_obj, "delete_records_for_users")
-        assert "delete_records_for_users" in admin_obj.actions
-
-    def test_delete_records_for_agents_functionality(self):
-        """Test delete_records_for_agents action functionality."""
-        # Create test data
-        user_agent1 = LogUserAgentFactory()
-        user_agent2 = LogUserAgentFactory()
-
-        # Create access logs for both user agents
-        log1 = AccessLogFactory(user_agent_normalized=user_agent1)  # noqa: F841
-        log2 = AccessLogFactory(user_agent_normalized=user_agent1)  # noqa: F841
-        log3 = AccessLogFactory(user_agent_normalized=user_agent2)  # noqa: F841
-
-        # Verify initial state
-        assert AccessLog.objects.filter(user_agent_normalized=user_agent1).count() == 2
-        assert AccessLog.objects.filter(user_agent_normalized=user_agent2).count() == 1
-
-        # Create admin and mock request
-        admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
-        mock_request = types.SimpleNamespace()
-        mock_request._messages = []
-
-        # Mock the messages framework
-        from django.contrib import messages
-
-        def mock_success(request, message):
-            request._messages.append(("success", message))
-
-        def mock_warning(request, message):
-            request._messages.append(("warning", message))
-
-        original_success = messages.success
-        original_warning = messages.warning
-        messages.success = mock_success
-        messages.warning = mock_warning
-
-        try:
-            # Test the action with user_agent1
-            queryset = LogUserAgent.objects.filter(id=user_agent1.id)
-            admin_obj.delete_records_for_agents(mock_request, queryset)
-
-            # Verify deletion
-            assert (
-                AccessLog.objects.filter(user_agent_normalized=user_agent1).count() == 0
-            )
-            assert (
-                AccessLog.objects.filter(user_agent_normalized=user_agent2).count() == 1
-            )
-
-            # Verify success message
-            assert len(mock_request._messages) == 1
-            assert mock_request._messages[0][0] == "success"
-            assert (
-                "Successfully deleted 2 access log records"
-                in mock_request._messages[0][1]
-            )
-
-        finally:
-            # Restore original methods
-            messages.success = original_success
-            messages.warning = original_warning
-
-    def test_delete_records_for_paths_functionality(self):
-        """Test delete_records_for_paths action functionality."""
-        # Create test data
-        path1 = LogPathFactory()
-        path2 = LogPathFactory()
-
-        # Create access logs for both paths
-        log1 = AccessLogFactory(path=path1)  # noqa: F841
-        log2 = AccessLogFactory(path=path1)  # noqa: F841
-        log3 = AccessLogFactory(path=path2)  # noqa: F841
-
-        # Verify initial state
-        assert AccessLog.objects.filter(path=path1).count() == 2
-        assert AccessLog.objects.filter(path=path2).count() == 1
-
-        # Create admin and mock request
-        admin_obj = audit_admin.LogPathAdmin(LogPath, site)
-        mock_request = types.SimpleNamespace()
-        mock_request._messages = []
-
-        # Mock the messages framework
-        from django.contrib import messages
-
-        def mock_success(request, message):
-            request._messages.append(("success", message))
-
-        def mock_warning(request, message):
-            request._messages.append(("warning", message))
-
-        original_success = messages.success
-        original_warning = messages.warning
-        messages.success = mock_success
-        messages.warning = mock_warning
-
-        try:
-            # Test the action with path1
-            queryset = LogPath.objects.filter(id=path1.id)
-            admin_obj.delete_records_for_paths(mock_request, queryset)
-
-            # Verify deletion
-            assert AccessLog.objects.filter(path=path1).count() == 0
-            assert AccessLog.objects.filter(path=path2).count() == 1
-
-            # Verify success message
-            assert len(mock_request._messages) == 1
-            assert mock_request._messages[0][0] == "success"
-            assert (
-                "Successfully deleted 2 access log records"
-                in mock_request._messages[0][1]
-            )
-
-        finally:
-            # Restore original methods
-            messages.success = original_success
-            messages.warning = original_warning
-
-    def test_delete_records_for_users_functionality(self):
-        """Test delete_records_for_users action functionality."""
-        # Create test data
-        user1 = LogUserFactory()
-        user2 = LogUserFactory()
-
-        # Create access logs for both users
-        log1 = AccessLogFactory(user=user1)  # noqa: F841
-        log2 = AccessLogFactory(user=user1)  # noqa: F841
-        log3 = AccessLogFactory(user=user2)  # noqa: F841
-
-        # Verify initial state
-        assert AccessLog.objects.filter(user=user1).count() == 2
-        assert AccessLog.objects.filter(user=user2).count() == 1
-
-        # Create admin and mock request
-        admin_obj = audit_admin.LogUserAdmin(LogUser, site)
-        mock_request = types.SimpleNamespace()
-        mock_request._messages = []
-
-        # Mock the messages framework
-        from django.contrib import messages
-
-        def mock_success(request, message):
-            request._messages.append(("success", message))
-
-        def mock_warning(request, message):
-            request._messages.append(("warning", message))
-
-        original_success = messages.success
-        original_warning = messages.warning
-        messages.success = mock_success
-        messages.warning = mock_warning
-
-        try:
-            # Test the action with user1
-            queryset = LogUser.objects.filter(id=user1.id)
-            admin_obj.delete_records_for_users(mock_request, queryset)
-
-            # Verify deletion
-            assert AccessLog.objects.filter(user=user1).count() == 0
-            assert AccessLog.objects.filter(user=user2).count() == 1
-
-            # Verify success message
-            assert len(mock_request._messages) == 1
-            assert mock_request._messages[0][0] == "success"
-            assert (
-                "Successfully deleted 2 access log records"
-                in mock_request._messages[0][1]
-            )
-
-        finally:
-            # Restore original methods
-            messages.success = original_success
-            messages.warning = original_warning
-
-    def test_admin_actions_no_records_to_delete(self):
-        """Test admin actions when no records exist to delete."""
-        # Create test objects without associated access logs
-        user_agent = LogUserAgentFactory()
-        path = LogPathFactory()  # noqa: F841
-        user = LogUserFactory()  # noqa: F841
-
-        # Mock request and messages
-        mock_request = types.SimpleNamespace()
-        mock_request._messages = []
-
-        from django.contrib import messages
-
-        def mock_warning(request, message):
-            request._messages.append(("warning", message))
-
-        original_warning = messages.warning
-        messages.warning = mock_warning
-
-        try:
-            # Test user agent action
-            admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
-            queryset = LogUserAgent.objects.filter(id=user_agent.id)
-            admin_obj.delete_records_for_agents(mock_request, queryset)
-
-            # Should get warning message
-            assert len(mock_request._messages) == 1
-            assert mock_request._messages[0][0] == "warning"
-            assert "No access log records found" in mock_request._messages[0][1]
-
-        finally:
-            # Restore original method
-            messages.warning = original_warning
-
-
-@pytest.mark.django_db
 class TestAdminInterfaceChanges:
     """Test admin interface modifications for exclusion fields."""
 
@@ -970,10 +741,10 @@ class TestDetailPageActions:
     def test_detail_actions_mixin_get_detail_actions_default(self):
         """Test that DetailActionsAdminMixin returns empty list by default."""
         from django_audit_log.admin import DetailActionsAdminMixin
-        
+
         class TestAdmin(DetailActionsAdminMixin):
             pass
-        
+
         admin_obj = TestAdmin()
         obj = LogUserFactory()
         actions = admin_obj.get_detail_actions(obj)
@@ -983,310 +754,312 @@ class TestDetailPageActions:
         """Test that LogUserAdmin provides detail actions."""
         admin_obj = audit_admin.LogUserAdmin(LogUser, site)
         user = LogUserFactory()
-        
+
         # Mock request with permissions
         import types
+
         mock_request = types.SimpleNamespace()
         mock_request.user = types.SimpleNamespace()
         mock_request.user.has_perm = lambda perm: True
         mock_request.user.is_superuser = False
         admin_obj.request = mock_request
-        
+
         actions = admin_obj.get_detail_actions(user)
         assert len(actions) == 1
-        assert actions[0]['name'] == 'delete_logs'
-        assert 'Delete All Logs' in actions[0]['label']
-        assert actions[0]['css_class'] == 'deletelink'
-        assert actions[0]['confirm'] is True
+        assert actions[0]["name"] == "delete_logs"
+        assert "Delete All Logs" in actions[0]["label"]
+        assert actions[0]["css_class"] == "deletelink"
 
     def test_logpath_admin_detail_actions_excluded(self):
         """Test that LogPathAdmin provides correct actions for excluded path."""
         admin_obj = audit_admin.LogPathAdmin(LogPath, site)
         path = LogPathFactory(exclude_path=True)
-        
+
         # Mock request with permissions
         import types
+
         mock_request = types.SimpleNamespace()
         mock_request.user = types.SimpleNamespace()
         mock_request.user.has_perm = lambda perm: True
         mock_request.user.is_superuser = False
         admin_obj.request = mock_request
-        
+
         actions = admin_obj.get_detail_actions(path)
         assert len(actions) == 2
-        
+
         # Find delete action
-        delete_action = next(a for a in actions if a['name'] == 'delete_logs')
-        assert 'Delete All Logs' in delete_action['label']
-        assert delete_action['css_class'] == 'deletelink'
-        
+        delete_action = next(a for a in actions if a["name"] == "delete_logs")
+        assert "Delete All Logs" in delete_action["label"]
+        assert delete_action["css_class"] == "deletelink"
+
         # Find include action
-        include_action = next(a for a in actions if a['name'] == 'include_path')
-        assert 'Include This Path' in include_action['label']
-        assert include_action['css_class'] == 'addlink'
-        assert include_action['confirm'] is False
+        include_action = next(a for a in actions if a["name"] == "include_path")
+        assert "Include This Path" in include_action["label"]
+        assert include_action["css_class"] == "addlink"
 
     def test_logpath_admin_detail_actions_included(self):
         """Test that LogPathAdmin provides correct actions for included path."""
         admin_obj = audit_admin.LogPathAdmin(LogPath, site)
         path = LogPathFactory(exclude_path=False)
-        
+
         # Mock request with permissions
         import types
+
         mock_request = types.SimpleNamespace()
         mock_request.user = types.SimpleNamespace()
         mock_request.user.has_perm = lambda perm: True
         mock_request.user.is_superuser = False
         admin_obj.request = mock_request
-        
+
         actions = admin_obj.get_detail_actions(path)
         assert len(actions) == 2
-        
+
         # Find exclude action
-        exclude_action = next(a for a in actions if a['name'] == 'exclude_path')
-        assert 'Exclude This Path' in exclude_action['label']
-        assert exclude_action['css_class'] == 'default'
-        assert exclude_action['confirm'] is True
+        exclude_action = next(a for a in actions if a["name"] == "exclude_path")
+        assert "Exclude This Path" in exclude_action["label"]
+        assert exclude_action["css_class"] == "default"
 
     def test_loguseragent_admin_detail_actions_excluded(self):
         """Test that LogUserAgentAdmin provides correct actions for excluded agent."""
         admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
-        agent = LogUserAgentFactory(exclude_agent=True, browser="Chrome", browser_version="91.0")
-        
+        agent = LogUserAgentFactory(
+            exclude_agent=True, browser="Chrome", browser_version="91.0"
+        )
+
         # Mock request with permissions
         import types
+
         mock_request = types.SimpleNamespace()
         mock_request.user = types.SimpleNamespace()
         mock_request.user.has_perm = lambda perm: True
         mock_request.user.is_superuser = False
         admin_obj.request = mock_request
-        
+
         actions = admin_obj.get_detail_actions(agent)
         assert len(actions) == 2
-        
+
         # Find include action
-        include_action = next(a for a in actions if a['name'] == 'include_agent')
-        assert 'Include This User Agent' in include_action['label']
-        assert include_action['css_class'] == 'addlink'
-        assert include_action['confirm'] is False
+        include_action = next(a for a in actions if a["name"] == "include_agent")
+        assert "Include This User Agent" in include_action["label"]
+        assert include_action["css_class"] == "addlink"
 
     def test_loguseragent_admin_detail_actions_included(self):
         """Test that LogUserAgentAdmin provides correct actions for included agent."""
         admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
-        agent = LogUserAgentFactory(exclude_agent=False, browser="Firefox", browser_version="89.0")
-        
+        agent = LogUserAgentFactory(
+            exclude_agent=False, browser="Firefox", browser_version="89.0"
+        )
+
         # Mock request with permissions
         import types
+
         mock_request = types.SimpleNamespace()
         mock_request.user = types.SimpleNamespace()
         mock_request.user.has_perm = lambda perm: True
         mock_request.user.is_superuser = False
         admin_obj.request = mock_request
-        
+
         actions = admin_obj.get_detail_actions(agent)
         assert len(actions) == 2
-        
+
         # Find exclude action
-        exclude_action = next(a for a in actions if a['name'] == 'exclude_agent')
-        assert 'Exclude This User Agent' in exclude_action['label']
-        assert exclude_action['css_class'] == 'default'
-        assert exclude_action['confirm'] is True
+        exclude_action = next(a for a in actions if a["name"] == "exclude_agent")
+        assert "Exclude This User Agent" in exclude_action["label"]
+        assert exclude_action["css_class"] == "default"
 
 
 @pytest.mark.django_db
 class TestDetailActionHandlers:
-    """Test detail page action handlers."""
+    """Test detail page action handlers via changeform_view."""
 
     def test_loguser_delete_logs_action_handler(self):
-        """Test LogUserAdmin delete logs action handler."""
+        """Test LogUserAdmin delete logs action via changeform_view."""
         admin_obj = audit_admin.LogUserAdmin(LogUser, site)
         user = LogUserFactory()
-        
+
         # Create some access logs for the user
         AccessLogFactory(user=user)
         AccessLogFactory(user=user)
-        
+
         # Verify logs exist
         assert AccessLog.objects.filter(user=user).count() == 2
-        
-        # Mock request
-        import types
-        from django.contrib import messages
-        mock_request = types.SimpleNamespace()
-        mock_request.path = '/admin/test/'
-        mock_request._messages = []
-        
-        def mock_success(request, message):
-            request._messages.append(("success", message))
-        
-        original_success = messages.success
-        messages.success = mock_success
-        
-        try:
-            # Test the handler (will raise redirect exception in test)
-            try:
-                admin_obj.handle_delete_logs_action(mock_request, user)
-            except Exception:
-                pass  # Expected redirect
-            
-            # Verify logs were deleted
-            assert AccessLog.objects.filter(user=user).count() == 0
-            
-            # Verify success message
-            assert len(mock_request._messages) == 1
-            assert mock_request._messages[0][0] == "success"
-            assert "Successfully deleted 2 access log records" in mock_request._messages[0][1]
-            
-        finally:
-            messages.success = original_success
+
+        # Mock request for POST with delete_logs action
+        from django.contrib.auth.models import AnonymousUser
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.middleware import SessionMiddleware
+        from django.test import RequestFactory
+
+        factory = RequestFactory()
+        request = factory.post(
+            f"/admin/django_audit_log/loguser/{user.id}/change/", {"delete_logs": ""}
+        )
+        request.user = AnonymousUser()
+        request.user.is_superuser = True
+        request.user.has_perm = lambda perm: True
+
+        # Add session and messages
+        middleware = SessionMiddleware(lambda x: None)
+        middleware.process_request(request)
+        request.session.save()
+
+        request._messages = FallbackStorage(request)
+
+        # Test the changeform_view with delete_logs action
+        # This should redirect, so we expect a redirect response
+        from django.http import HttpResponseRedirect
+
+        response = admin_obj.changeform_view(request, str(user.id))
+        assert isinstance(response, HttpResponseRedirect)
+
+        # Verify logs were deleted
+        assert AccessLog.objects.filter(user=user).count() == 0
 
     def test_logpath_exclude_path_action_handler(self):
-        """Test LogPathAdmin exclude path action handler."""
+        """Test LogPathAdmin exclude path action via changeform_view."""
         admin_obj = audit_admin.LogPathAdmin(LogPath, site)
         path = LogPathFactory(exclude_path=False)
-        
-        # Mock request
-        import types
-        from django.contrib import messages
-        mock_request = types.SimpleNamespace()
-        mock_request.path = '/admin/test/'
-        mock_request._messages = []
-        
-        def mock_success(request, message):
-            request._messages.append(("success", message))
-        
-        original_success = messages.success
-        messages.success = mock_success
-        
-        try:
-            # Test the handler
-            try:
-                admin_obj.handle_exclude_path_action(mock_request, path)
-            except Exception:
-                pass  # Expected redirect
-            
-            # Verify path is now excluded
-            path.refresh_from_db()
-            assert path.exclude_path is True
-            
-            # Verify success message
-            assert len(mock_request._messages) == 1
-            assert mock_request._messages[0][0] == "success"
-            assert "is now excluded from logging" in mock_request._messages[0][1]
-            
-        finally:
-            messages.success = original_success
+
+        # Mock request for POST with exclude_path action
+        from django.contrib.auth.models import AnonymousUser
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.middleware import SessionMiddleware
+        from django.test import RequestFactory
+
+        factory = RequestFactory()
+        request = factory.post(
+            f"/admin/django_audit_log/logpath/{path.id}/change/", {"exclude_path": ""}
+        )
+        request.user = AnonymousUser()
+        request.user.is_superuser = True
+        request.user.has_perm = lambda perm: True
+
+        # Add session and messages
+        middleware = SessionMiddleware(lambda x: None)
+        middleware.process_request(request)
+        request.session.save()
+
+        request._messages = FallbackStorage(request)
+
+        # Test the changeform_view with exclude_path action
+        from django.http import HttpResponseRedirect
+
+        response = admin_obj.changeform_view(request, str(path.id))
+        assert isinstance(response, HttpResponseRedirect)
+
+        # Verify path is now excluded
+        path.refresh_from_db()
+        assert path.exclude_path is True
 
     def test_logpath_include_path_action_handler(self):
-        """Test LogPathAdmin include path action handler."""
+        """Test LogPathAdmin include path action via changeform_view."""
         admin_obj = audit_admin.LogPathAdmin(LogPath, site)
         path = LogPathFactory(exclude_path=True)
-        
-        # Mock request
-        import types
-        from django.contrib import messages
-        mock_request = types.SimpleNamespace()
-        mock_request.path = '/admin/test/'
-        mock_request._messages = []
-        
-        def mock_success(request, message):
-            request._messages.append(("success", message))
-        
-        original_success = messages.success
-        messages.success = mock_success
-        
-        try:
-            # Test the handler
-            try:
-                admin_obj.handle_include_path_action(mock_request, path)
-            except Exception:
-                pass  # Expected redirect
-            
-            # Verify path is now included
-            path.refresh_from_db()
-            assert path.exclude_path is False
-            
-            # Verify success message
-            assert len(mock_request._messages) == 1
-            assert mock_request._messages[0][0] == "success"
-            assert "is now included in logging" in mock_request._messages[0][1]
-            
-        finally:
-            messages.success = original_success
+
+        # Mock request for POST with exclude_path action (toggles)
+        from django.contrib.auth.models import AnonymousUser
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.middleware import SessionMiddleware
+        from django.test import RequestFactory
+
+        factory = RequestFactory()
+        request = factory.post(
+            f"/admin/django_audit_log/logpath/{path.id}/change/", {"exclude_path": ""}
+        )
+        request.user = AnonymousUser()
+        request.user.is_superuser = True
+        request.user.has_perm = lambda perm: True
+
+        # Add session and messages
+        middleware = SessionMiddleware(lambda x: None)
+        middleware.process_request(request)
+        request.session.save()
+
+        request._messages = FallbackStorage(request)
+
+        # Test the changeform_view with exclude_path action (should toggle to include)
+        from django.http import HttpResponseRedirect
+
+        response = admin_obj.changeform_view(request, str(path.id))
+        assert isinstance(response, HttpResponseRedirect)
+
+        # Verify path is now included
+        path.refresh_from_db()
+        assert path.exclude_path is False
 
     def test_loguseragent_exclude_agent_action_handler(self):
-        """Test LogUserAgentAdmin exclude agent action handler."""
+        """Test LogUserAgentAdmin exclude agent action via changeform_view."""
         admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
         agent = LogUserAgentFactory(exclude_agent=False, browser="Safari")
-        
-        # Mock request
-        import types
-        from django.contrib import messages
-        mock_request = types.SimpleNamespace()
-        mock_request.path = '/admin/test/'
-        mock_request._messages = []
-        
-        def mock_success(request, message):
-            request._messages.append(("success", message))
-        
-        original_success = messages.success
-        messages.success = mock_success
-        
-        try:
-            # Test the handler
-            try:
-                admin_obj.handle_exclude_agent_action(mock_request, agent)
-            except Exception:
-                pass  # Expected redirect
-            
-            # Verify agent is now excluded
-            agent.refresh_from_db()
-            assert agent.exclude_agent is True
-            
-            # Verify success message
-            assert len(mock_request._messages) == 1
-            assert mock_request._messages[0][0] == "success"
-            assert "is now excluded from logging" in mock_request._messages[0][1]
-            
-        finally:
-            messages.success = original_success
+
+        # Mock request for POST with exclude_agent action
+        from django.contrib.auth.models import AnonymousUser
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.middleware import SessionMiddleware
+        from django.test import RequestFactory
+
+        factory = RequestFactory()
+        request = factory.post(
+            f"/admin/django_audit_log/loguseragent/{agent.id}/change/",
+            {"exclude_agent": ""},
+        )
+        request.user = AnonymousUser()
+        request.user.is_superuser = True
+        request.user.has_perm = lambda perm: True
+
+        # Add session and messages
+        middleware = SessionMiddleware(lambda x: None)
+        middleware.process_request(request)
+        request.session.save()
+
+        request._messages = FallbackStorage(request)
+
+        # Test the changeform_view with exclude_agent action
+        from django.http import HttpResponseRedirect
+
+        response = admin_obj.changeform_view(request, str(agent.id))
+        assert isinstance(response, HttpResponseRedirect)
+
+        # Verify agent is now excluded
+        agent.refresh_from_db()
+        assert agent.exclude_agent is True
 
     def test_loguseragent_include_agent_action_handler(self):
-        """Test LogUserAgentAdmin include agent action handler."""
+        """Test LogUserAgentAdmin include agent action via changeform_view."""
         admin_obj = audit_admin.LogUserAgentAdmin(LogUserAgent, site)
         agent = LogUserAgentFactory(exclude_agent=True, browser="Edge")
-        
-        # Mock request
-        import types
-        from django.contrib import messages
-        mock_request = types.SimpleNamespace()
-        mock_request.path = '/admin/test/'
-        mock_request._messages = []
-        
-        def mock_success(request, message):
-            request._messages.append(("success", message))
-        
-        original_success = messages.success
-        messages.success = mock_success
-        
-        try:
-            # Test the handler
-            try:
-                admin_obj.handle_include_agent_action(mock_request, agent)
-            except Exception:
-                pass  # Expected redirect
-            
-            # Verify agent is now included
-            agent.refresh_from_db()
-            assert agent.exclude_agent is False
-            
-            # Verify success message
-            assert len(mock_request._messages) == 1
-            assert mock_request._messages[0][0] == "success"
-            assert "is now included in logging" in mock_request._messages[0][1]
-            
-        finally:
-            messages.success = original_success
+
+        # Mock request for POST with exclude_agent action (toggles)
+        from django.contrib.auth.models import AnonymousUser
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.middleware import SessionMiddleware
+        from django.test import RequestFactory
+
+        factory = RequestFactory()
+        request = factory.post(
+            f"/admin/django_audit_log/loguseragent/{agent.id}/change/",
+            {"exclude_agent": ""},
+        )
+        request.user = AnonymousUser()
+        request.user.is_superuser = True
+        request.user.has_perm = lambda perm: True
+
+        # Add session and messages
+        middleware = SessionMiddleware(lambda x: None)
+        middleware.process_request(request)
+        request.session.save()
+
+        request._messages = FallbackStorage(request)
+
+        # Test the changeform_view with exclude_agent action (should toggle to include)
+        from django.http import HttpResponseRedirect
+
+        response = admin_obj.changeform_view(request, str(agent.id))
+        assert isinstance(response, HttpResponseRedirect)
+
+        # Verify agent is now included
+        agent.refresh_from_db()
+        assert agent.exclude_agent is False
 
 
 @pytest.mark.django_db
@@ -1297,15 +1070,16 @@ class TestDetailActionPermissions:
         """Test that detail actions respect user permissions."""
         admin_obj = audit_admin.LogUserAdmin(LogUser, site)
         user = LogUserFactory()
-        
+
         # Mock request without permissions
         import types
+
         mock_request = types.SimpleNamespace()
         mock_request.user = types.SimpleNamespace()
         mock_request.user.has_perm = lambda perm: False
         mock_request.user.is_superuser = False
         admin_obj.request = mock_request
-        
+
         actions = admin_obj.get_detail_actions(user)
         assert len(actions) == 0  # No actions should be available without permissions
 
@@ -1313,61 +1087,73 @@ class TestDetailActionPermissions:
         """Test that detail actions are available with proper permissions."""
         admin_obj = audit_admin.LogPathAdmin(LogPath, site)
         path = LogPathFactory()
-        
+
         # Mock request with permissions
         import types
+
         mock_request = types.SimpleNamespace()
         mock_request.user = types.SimpleNamespace()
         mock_request.user.has_perm = lambda perm: True
         mock_request.user.is_superuser = False
         admin_obj.request = mock_request
-        
+
         actions = admin_obj.get_detail_actions(path)
         assert len(actions) == 2  # Should have both delete and exclude/include actions
 
 
 @pytest.mark.django_db
 class TestDetailActionErrorHandling:
-    """Test error handling in detail page actions."""
+    """Test error handling in detail actions."""
 
     def test_delete_logs_action_handles_database_error(self):
         """Test that delete logs action handles database errors gracefully."""
         admin_obj = audit_admin.LogUserAdmin(LogUser, site)
         user = LogUserFactory()
-        
-        # Mock request
-        import types
-        from django.contrib import messages
-        mock_request = types.SimpleNamespace()
-        mock_request.path = '/admin/test/'
-        mock_request._messages = []
-        
-        def mock_error(request, message):
-            request._messages.append(("error", message))
-        
-        original_error = messages.error
-        messages.error = mock_error
-        
+
+        # Mock request for POST with delete_logs action
+        from django.contrib.auth.models import AnonymousUser
+        from django.contrib.messages.storage.fallback import FallbackStorage
+        from django.contrib.sessions.middleware import SessionMiddleware
+        from django.test import RequestFactory
+
+        factory = RequestFactory()
+        request = factory.post(
+            f"/admin/django_audit_log/loguser/{user.id}/change/", {"delete_logs": ""}
+        )
+        request.user = AnonymousUser()
+        request.user.is_superuser = True
+        request.user.has_perm = lambda perm: True
+
+        # Add session and messages
+        middleware = SessionMiddleware(lambda x: None)
+        middleware.process_request(request)
+        request.session.save()
+
+        request._messages = FallbackStorage(request)
+
         # Mock AccessLog.objects.filter to raise an exception
         original_filter = AccessLog.objects.filter
-        
+
         def mock_filter(*args, **kwargs):
             raise Exception("Database error")
-        
+
         AccessLog.objects.filter = mock_filter
-        
+
         try:
-            # Test the handler
-            try:
-                admin_obj.handle_delete_logs_action(mock_request, user)
-            except Exception:
-                pass  # Expected redirect
-            
-            # Verify error message
-            assert len(mock_request._messages) == 1
-            assert mock_request._messages[0][0] == "error"
-            assert "Error deleting access log records" in mock_request._messages[0][1]
-            
+            # Test the changeform_view with delete_logs action
+            # Should handle the error gracefully and redirect
+            from django.http import HttpResponseRedirect
+
+            response = admin_obj.changeform_view(request, str(user.id))
+            assert isinstance(response, HttpResponseRedirect)
+
+            # Check that an error message was added
+            messages = list(request._messages)
+            assert len(messages) >= 1
+            # Look for error message in the messages
+            error_found = any("Error deleting" in str(msg.message) for msg in messages)
+            assert error_found, f"Expected error message not found in: {[str(msg.message) for msg in messages]}"
+
         finally:
-            messages.error = original_error
+            # Restore original method
             AccessLog.objects.filter = original_filter

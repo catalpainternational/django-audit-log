@@ -13,7 +13,7 @@ wheels = [
 
 [[package]]
 name = "catalpa-django-audit-log"
-version = "0.0.8a3"
+version = "0.0.8a2"
 source = { editable = "." }
 dependencies = [
     { name = "django" },

@@ -1,13 +1,12 @@
 from datetime import timedelta
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.admin import SimpleListFilter
 from django.db import models, transaction
 from django.db.models.functions import Cast
+from django.shortcuts import redirect
 from django.utils import timezone
 from django.utils.html import mark_safe
-from django.contrib import messages
-from django.shortcuts import redirect
 
 from django_audit_log.user_agent_utils import UserAgentUtil
 
@@ -30,12 +29,12 @@ except ImportError:
 
 class DetailActionsAdminMixin:
     """Mixin to add custom actions to admin detail pages."""
-    
+
     def get_detail_actions(self, obj):
         """
         Return a list of custom actions available for this object.
         Should be overridden by subclasses.
-        
+
         Each action should be a dict with:
         - name: action identifier
         - label: button text
@@ -45,16 +44,15 @@ class DetailActionsAdminMixin:
         """
         return []
 
-    
-    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         """Add detail actions to the change form context."""
         extra_context = extra_context or {}
-        
+
         if object_id:
             obj = self.get_object(request, object_id)
             if obj:
-                extra_context['detail_actions'] = self.get_detail_actions(obj)
-        
+                extra_context["detail_actions"] = self.get_detail_actions(obj)
+
         return super().changeform_view(request, object_id, form_url, extra_context)
 
 
@@ -66,18 +64,26 @@ class ReadOnlyAdmin(admin.ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
-        # Allow change permission for actions to work, but individual objects 
+        # Allow change permission for actions to work, but individual objects
         # will be read-only through get_readonly_fields()
-        if obj is None and hasattr(request, 'user'):  # This is for the changelist (needed for actions)
-            return request.user.is_superuser or request.user.has_perm(f'{self.opts.app_label}.change_{self.opts.model_name}')
+        if obj is None and hasattr(
+            request, "user"
+        ):  # This is for the changelist (needed for actions)
+            return request.user.is_superuser or request.user.has_perm(
+                f"{self.opts.app_label}.change_{self.opts.model_name}"
+            )
         return False  # No editing of individual objects or when no user available
 
     def has_delete_permission(self, request, obj=None):
         # Allow delete permission for actions to work
-        if obj is None and hasattr(request, 'user'):  # This is for the changelist (needed for actions)
-            return request.user.is_superuser or request.user.has_perm(f'{self.opts.app_label}.delete_{self.opts.model_name}')
+        if obj is None and hasattr(
+            request, "user"
+        ):  # This is for the changelist (needed for actions)
+            return request.user.is_superuser or request.user.has_perm(
+                f"{self.opts.app_label}.delete_{self.opts.model_name}"
+            )
         return False  # No deleting of individual objects or when no user available
-    
+
     def get_readonly_fields(self, request, obj=None):
         """Make all fields read-only to prevent editing."""
         if obj:  # Editing an existing object
@@ -111,25 +117,41 @@ class BrowserTypeFilter(SimpleListFilter):
         value = self.value()
 
         if value == "chrome":
-            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Chrome").exclude(
-                user_agent_normalized__browser="Chromium"
+            return (
+                queryset.select_related("user_agent_normalized")
+                .filter(user_agent_normalized__browser="Chrome")
+                .exclude(user_agent_normalized__browser="Chromium")
             )
         elif value == "firefox":
-            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Firefox")
+            return queryset.select_related("user_agent_normalized").filter(
+                user_agent_normalized__browser="Firefox"
+            )
         elif value == "safari":
-            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Safari").exclude(
-                user_agent_normalized__browser="Chrome"
+            return (
+                queryset.select_related("user_agent_normalized")
+                .filter(user_agent_normalized__browser="Safari")
+                .exclude(user_agent_normalized__browser="Chrome")
             )
         elif value == "edge":
-            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Edge")
+            return queryset.select_related("user_agent_normalized").filter(
+                user_agent_normalized__browser="Edge"
+            )
         elif value == "ie":
-            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Internet Explorer")
+            return queryset.select_related("user_agent_normalized").filter(
+                user_agent_normalized__browser="Internet Explorer"
+            )
         elif value == "opera":
-            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__browser="Opera")
+            return queryset.select_related("user_agent_normalized").filter(
+                user_agent_normalized__browser="Opera"
+            )
         elif value == "mobile":
-            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__device_type="Mobile")
+            return queryset.select_related("user_agent_normalized").filter(
+                user_agent_normalized__device_type="Mobile"
+            )
         elif value == "bots":
-            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__is_bot=True)
+            return queryset.select_related("user_agent_normalized").filter(
+                user_agent_normalized__is_bot=True
+            )
         elif value == "other":
             major_browsers = [
                 "Chrome",
@@ -139,7 +161,9 @@ class BrowserTypeFilter(SimpleListFilter):
                 "Internet Explorer",
                 "Opera",
             ]
-            return queryset.select_related('user_agent_normalized').exclude(user_agent_normalized__browser__in=major_browsers)
+            return queryset.select_related("user_agent_normalized").exclude(
+                user_agent_normalized__browser__in=major_browsers
+            )
 
 
 class DeviceTypeFilter(SimpleListFilter):
@@ -162,13 +186,19 @@ class DeviceTypeFilter(SimpleListFilter):
 
         value = self.value()
         if value == "mobile":
-            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__device_type="Mobile")
+            return queryset.select_related("user_agent_normalized").filter(
+                user_agent_normalized__device_type="Mobile"
+            )
         elif value == "tablet":
-            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__device_type="Tablet")
+            return queryset.select_related("user_agent_normalized").filter(
+                user_agent_normalized__device_type="Tablet"
+            )
         elif value == "bot":
-            return queryset.select_related('user_agent_normalized').filter(user_agent_normalized__is_bot=True)
+            return queryset.select_related("user_agent_normalized").filter(
+                user_agent_normalized__is_bot=True
+            )
         elif value == "desktop":
-            return queryset.select_related('user_agent_normalized').filter(
+            return queryset.select_related("user_agent_normalized").filter(
                 user_agent_normalized__device_type="Desktop",
                 user_agent_normalized__is_bot=False,
             )
@@ -216,13 +246,13 @@ class AccessLogAdmin(ReadOnlyAdmin):
         """Optimize queryset with select_related to reduce database queries."""
         qs = super().get_queryset(request)
         qs = qs.select_related(
-            'path',
-            'referrer', 
-            'response_url',
-            'user_agent_normalized',
-            'user',
-            'session_key',
-            'ip'
+            "path",
+            "referrer",
+            "response_url",
+            "user_agent_normalized",
+            "user",
+            "session_key",
+            "ip",
         )
         return qs
 
@@ -492,43 +522,125 @@ class LogPathAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
     list_filter = ("exclude_path",)
     search_fields = ("path",)
     readonly_fields = ("path",)
+
     def get_detail_actions(self, obj):
         """Return list of available actions for this path."""
         actions = []
-        
+
         # Check if user has permission to delete access logs
-        request = getattr(self, 'request', None)
-        if request and (request.user.is_superuser or request.user.has_perm('django_audit_log.delete_accesslog')):
-            actions.append({
-                'name': 'delete_logs',
-                'label': f'Delete All Logs for Path "{obj.path}"',
-                'css_class': 'deletelink',
-                'url': f'/audit-log/delete-path-logs/{obj.id}/',
-            })
-        
+        request = getattr(self, "request", None)
+        if request and (
+            request.user.is_superuser
+            or request.user.has_perm("django_audit_log.delete_accesslog")
+        ):
+            actions.append(
+                {
+                    "name": "delete_logs",
+                    "label": f'Delete All Logs for Path "{obj.path}"',
+                    "css_class": "deletelink",
+                    "url": f"/audit-log/delete-path-logs/{obj.id}/",
+                }
+            )
+
         # Add exclusion toggle action (always available to change the model)
         if obj.exclude_path:
-            actions.append({
-                'name': 'include_path',
-                'label': 'Include This Path in Logging',
-                'css_class': 'addlink',
-                'url': f'/audit-log/toggle-path-exclusion/{obj.id}/',
-            })
+            actions.append(
+                {
+                    "name": "include_path",
+                    "label": "Include This Path in Logging",
+                    "css_class": "addlink",
+                    "url": f"/audit-log/toggle-path-exclusion/{obj.id}/",
+                }
+            )
         else:
-            actions.append({
-                'name': 'exclude_path',
-                'label': 'Exclude This Path from Logging',
-                'css_class': 'default',
-                'url': f'/audit-log/toggle-path-exclusion/{obj.id}/',
-            })
-        
+            actions.append(
+                {
+                    "name": "exclude_path",
+                    "label": "Exclude This Path from Logging",
+                    "css_class": "default",
+                    "url": f"/audit-log/toggle-path-exclusion/{obj.id}/",
+                }
+            )
+
         return actions
-    
 
-
-    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
-        """Store request for permission checking in detail actions."""
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        """Store request for permission checking in detail actions and handle action submissions."""
         self.request = request
+
+        # Handle detail action submissions
+        if request.method == "POST" and object_id:
+            obj = self.get_object(request, object_id)
+            if obj:
+                # Check for delete_logs action
+                if "delete_logs" in request.POST:
+                    if not (
+                        request.user.is_superuser
+                        or request.user.has_perm("django_audit_log.delete_accesslog")
+                    ):
+                        messages.error(
+                            request, "You don't have permission to delete access logs."
+                        )
+                    else:
+                        try:
+                            with transaction.atomic():
+                                count, _ = AccessLog.objects.filter(path=obj).delete()
+
+                                if count > 0:
+                                    messages.success(
+                                        request,
+                                        f'Successfully deleted {count} access log records for path "{obj.path}".',
+                                    )
+                                else:
+                                    messages.warning(
+                                        request,
+                                        f'No access log records found for path "{obj.path}".',
+                                    )
+
+                        except Exception as e:
+                            messages.error(
+                                request,
+                                f'Error deleting access log records for path "{obj.path}": {str(e)}',
+                            )
+
+                    # Redirect to prevent re-submission
+                    return redirect("admin:django_audit_log_logpath_change", object_id)
+
+                # Check for exclude_path action
+                elif "exclude_path" in request.POST or "include_path" in request.POST:
+                    if not (
+                        request.user.is_superuser
+                        or request.user.has_perm("django_audit_log.change_logpath")
+                    ):
+                        messages.error(
+                            request,
+                            "You don't have permission to modify path exclusions.",
+                        )
+                    else:
+                        try:
+                            with transaction.atomic():
+                                obj.exclude_path = not obj.exclude_path
+                                obj.save()
+
+                                status = (
+                                    "excluded from"
+                                    if obj.exclude_path
+                                    else "included in"
+                                )
+                                messages.success(
+                                    request,
+                                    f'Path "{obj.path}" is now {status} logging.',
+                                )
+
+                        except Exception as e:
+                            messages.error(
+                                request,
+                                f'Error updating exclusion status for path "{obj.path}": {str(e)}',
+                            )
+
+                    # Redirect to prevent re-submission
+                    return redirect("admin:django_audit_log_logpath_change", object_id)
+
         return super().changeform_view(request, object_id, form_url, extra_context)
 
     def get_readonly_fields(self, request, obj=None):
@@ -537,8 +649,6 @@ class LogPathAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
             return ("path",)  # Only path is readonly
         else:  # Adding a new object (shouldn't happen due to ReadOnlyAdmin)
             return ("path", "exclude_path")
-
-
 
 
 class LogSessionKeyAdmin(ReadOnlyAdmin):
@@ -649,39 +759,80 @@ class LogUserAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
     else:
         list_filter = (ActivityLevelFilter, MultipleIPFilter)
 
-    
     def get_detail_actions(self, obj):
         """Return list of available actions for this user."""
         actions = []
-        
+
         # Check if user has permission to delete access logs
-        request = getattr(self, 'request', None)
-        if request and (request.user.is_superuser or request.user.has_perm('django_audit_log.delete_accesslog')):
-            actions.append({
-                'name': 'delete_logs',
-                'label': f'Delete All Logs for User "{obj.user_name}"',
-                'css_class': 'deletelink',
-                'url': f'/audit-log/delete-user-logs/{obj.id}/',
-            })
-        
+        request = getattr(self, "request", None)
+        if request and (
+            request.user.is_superuser
+            or request.user.has_perm("django_audit_log.delete_accesslog")
+        ):
+            actions.append(
+                {
+                    "name": "delete_logs",
+                    "label": f'Delete All Logs for User "{obj.user_name}"',
+                    "css_class": "deletelink",
+                    "url": f"/audit-log/delete-user-logs/{obj.id}/",
+                }
+            )
+
         return actions
-    
 
-
-    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
-        """Store request for permission checking in detail actions."""
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        """Store request for permission checking in detail actions and handle action submissions."""
         self.request = request
+
+        # Handle detail action submissions
+        if request.method == "POST" and object_id:
+            obj = self.get_object(request, object_id)
+            if obj:  # noqa: SIM102
+                # Check for delete_logs action
+                if "delete_logs" in request.POST:
+                    if not (
+                        request.user.is_superuser
+                        or request.user.has_perm("django_audit_log.delete_accesslog")
+                    ):
+                        messages.error(
+                            request, "You don't have permission to delete access logs."
+                        )
+                    else:
+                        try:
+                            with transaction.atomic():
+                                count, _ = AccessLog.objects.filter(user=obj).delete()
+
+                                if count > 0:
+                                    messages.success(
+                                        request,
+                                        f'Successfully deleted {count} access log records for user "{obj.user_name}".',
+                                    )
+                                else:
+                                    messages.warning(
+                                        request,
+                                        f'No access log records found for user "{obj.user_name}".',
+                                    )
+
+                        except Exception as e:
+                            messages.error(
+                                request,
+                                f'Error deleting access log records for user "{obj.user_name}": {str(e)}',
+                            )
+
+                    # Redirect to prevent re-submission
+                    return redirect("admin:django_audit_log_loguser_change", object_id)
+
         return super().changeform_view(request, object_id, form_url, extra_context)
-
-
 
     def get_queryset(self, request):
         """Optimize queryset with prefetch_related and annotations."""
         qs = super().get_queryset(request)
         qs = qs.prefetch_related(
             models.Prefetch(
-                'accesslog_set',
-                queryset=AccessLog.objects.select_related('ip', 'user_agent_normalized')
+                "accesslog_set",
+                queryset=AccessLog.objects.select_related(
+                    "ip", "user_agent_normalized"
+                ),
             )
         ).annotate(
             access_count=models.Count("accesslog"),
@@ -719,7 +870,7 @@ class LogUserAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         user_agents = (
             AccessLog.objects.filter(user=obj)
             .exclude(user_agent_normalized__isnull=True)
-            .select_related('user_agent_normalized')
+            .select_related("user_agent_normalized")
             .values(
                 "user_agent_normalized__browser",
                 "user_agent_normalized__operating_system",
@@ -855,7 +1006,11 @@ class LogUserAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
 
     def recent_activity(self, obj):
         """Show the most recent activity for this user."""
-        recent_logs = AccessLog.objects.filter(user=obj).select_related('path', 'user_agent_normalized').order_by("-timestamp")[:10]
+        recent_logs = (
+            AccessLog.objects.filter(user=obj)
+            .select_related("path", "user_agent_normalized")
+            .order_by("-timestamp")[:10]
+        )
 
         if not recent_logs:
             return "No recent activity"
@@ -1106,8 +1261,10 @@ class LogIpAddressAdmin(ReadOnlyAdmin):
         qs = super().get_queryset(request)
         qs = qs.prefetch_related(
             models.Prefetch(
-                'accesslog_set',
-                queryset=AccessLog.objects.select_related('user', 'user_agent_normalized')
+                "accesslog_set",
+                queryset=AccessLog.objects.select_related(
+                    "user", "user_agent_normalized"
+                ),
             )
         ).annotate(
             request_count=models.Count("accesslog"),
@@ -1266,21 +1423,20 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         "related_users",
     )
 
-    
     def get_readonly_fields(self, request, obj=None):
         """Make exclude_agent editable for existing objects."""
         if obj:  # Editing an existing object
             # Get all fields except exclude_agent
             all_fields = [field.name for field in self.model._meta.fields]
-            readonly_fields = [f for f in all_fields if f != 'exclude_agent']
+            readonly_fields = [f for f in all_fields if f != "exclude_agent"]
             return readonly_fields
         else:  # Adding a new object (shouldn't happen due to ReadOnlyAdmin)
             return list(self.readonly_fields)
-    
+
     def get_detail_actions(self, obj):
         """Return list of available actions for this user agent."""
         actions = []
-        
+
         # Create descriptive label for the user agent
         agent_description = f"{obj.browser or 'Unknown'}"
         if obj.browser_version:
@@ -1289,65 +1445,174 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
             agent_description += f" on {obj.operating_system}"
             if obj.operating_system_version:
                 agent_description += f" {obj.operating_system_version}"
-        
+
         # Check if user has permission to delete access logs
-        request = getattr(self, 'request', None)
-        if request and (request.user.is_superuser or request.user.has_perm('django_audit_log.delete_accesslog')):
-            actions.append({
-                'name': 'delete_logs',
-                'label': f'Delete All Logs for User Agent "{agent_description}"',
-                'css_class': 'deletelink',
-                'url': f'/audit-log/delete-user-agent-logs/{obj.id}/',
-            })
-        
+        request = getattr(self, "request", None)
+        if request and (
+            request.user.is_superuser
+            or request.user.has_perm("django_audit_log.delete_accesslog")
+        ):
+            actions.append(
+                {
+                    "name": "delete_logs",
+                    "label": f'Delete All Logs for User Agent "{agent_description}"',
+                    "css_class": "deletelink",
+                    "url": f"/audit-log/delete-user-agent-logs/{obj.id}/",
+                }
+            )
+
         # Add exclusion toggle action (always available to change the model)
         if obj.exclude_agent:
-            actions.append({
-                'name': 'include_agent',
-                'label': 'Include This User Agent in Logging',
-                'css_class': 'addlink',
-                'url': f'/audit-log/toggle-user-agent-exclusion/{obj.id}/',
-            })
+            actions.append(
+                {
+                    "name": "include_agent",
+                    "label": "Include This User Agent in Logging",
+                    "css_class": "addlink",
+                    "url": f"/audit-log/toggle-user-agent-exclusion/{obj.id}/",
+                }
+            )
         else:
-            actions.append({
-                'name': 'exclude_agent',
-                'label': 'Exclude This User Agent from Logging',
-                'css_class': 'default',
-                'url': f'/audit-log/toggle-user-agent-exclusion/{obj.id}/',
-            })
-        
+            actions.append(
+                {
+                    "name": "exclude_agent",
+                    "label": "Exclude This User Agent from Logging",
+                    "css_class": "default",
+                    "url": f"/audit-log/toggle-user-agent-exclusion/{obj.id}/",
+                }
+            )
+
         return actions
-    
 
-
-    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
-        """Store request for permission checking in detail actions."""
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        """Store request for permission checking in detail actions and handle action submissions."""
         self.request = request
+
+        # Handle detail action submissions
+        if request.method == "POST" and object_id:
+            obj = self.get_object(request, object_id)
+            if obj:
+                # Check for delete_logs action
+                if "delete_logs" in request.POST:
+                    if not (
+                        request.user.is_superuser
+                        or request.user.has_perm("django_audit_log.delete_accesslog")
+                    ):
+                        messages.error(
+                            request, "You don't have permission to delete access logs."
+                        )
+                    else:
+                        try:
+                            with transaction.atomic():
+                                count, _ = AccessLog.objects.filter(
+                                    user_agent_normalized=obj
+                                ).delete()
+
+                                agent_description = (
+                                    f"{obj.browser} {obj.browser_version}"
+                                )
+                                if obj.operating_system:
+                                    agent_description += f" on {obj.operating_system}"
+                                    if obj.operating_system_version:
+                                        agent_description += (
+                                            f" {obj.operating_system_version}"
+                                        )
+
+                                if count > 0:
+                                    messages.success(
+                                        request,
+                                        f'Successfully deleted {count} access log records for user agent "{agent_description}".',
+                                    )
+                                else:
+                                    messages.warning(
+                                        request,
+                                        f'No access log records found for user agent "{agent_description}".',
+                                    )
+
+                        except Exception as e:
+                            messages.error(
+                                request,
+                                f"Error deleting access log records for user agent: {str(e)}",
+                            )
+
+                    # Redirect to prevent re-submission
+                    return redirect(
+                        "admin:django_audit_log_loguseragent_change", object_id
+                    )
+
+                # Check for exclude_agent action
+                elif "exclude_agent" in request.POST or "include_agent" in request.POST:
+                    if not (
+                        request.user.is_superuser
+                        or request.user.has_perm("django_audit_log.change_loguseragent")
+                    ):
+                        messages.error(
+                            request,
+                            "You don't have permission to modify user agent exclusions.",
+                        )
+                    else:
+                        try:
+                            with transaction.atomic():
+                                obj.exclude_agent = not obj.exclude_agent
+                                obj.save()
+
+                                agent_description = (
+                                    f"{obj.browser} {obj.browser_version}"
+                                )
+                                if obj.operating_system:
+                                    agent_description += f" on {obj.operating_system}"
+                                    if obj.operating_system_version:
+                                        agent_description += (
+                                            f" {obj.operating_system_version}"
+                                        )
+
+                                status = (
+                                    "excluded from"
+                                    if obj.exclude_agent
+                                    else "included in"
+                                )
+                                messages.success(
+                                    request,
+                                    f'User agent "{agent_description}" is now {status} logging.',
+                                )
+
+                        except Exception as e:
+                            messages.error(
+                                request,
+                                f"Error updating exclusion status for user agent: {str(e)}",
+                            )
+
+                    # Redirect to prevent re-submission
+                    return redirect(
+                        "admin:django_audit_log_loguseragent_change", object_id
+                    )
+
         return super().changeform_view(request, object_id, form_url, extra_context)
-
-
 
     def get_queryset(self, request):
         """Optimize queryset with prefetch_related and annotations."""
         qs = super().get_queryset(request)
-        qs = qs.prefetch_related(
-            models.Prefetch(
-                'access_logs',
-                queryset=AccessLog.objects.select_related('user', 'ip', 'path')
+        qs = (
+            qs.prefetch_related(
+                models.Prefetch(
+                    "access_logs",
+                    queryset=AccessLog.objects.select_related("user", "ip", "path"),
+                )
             )
-        ).annotate(
-            usage_count=models.Count("access_logs"),
-            unique_users=models.Count("access_logs__user", distinct=True),
-            # Add semantic version ordering
-            version_as_int=models.Case(
-                models.When(
-                    operating_system_version__regex=r"^\d+$",
-                    then=Cast("operating_system_version", models.IntegerField()),
+            .annotate(
+                usage_count=models.Count("access_logs"),
+                unique_users=models.Count("access_logs__user", distinct=True),
+                # Add semantic version ordering
+                version_as_int=models.Case(
+                    models.When(
+                        operating_system_version__regex=r"^\d+$",
+                        then=Cast("operating_system_version", models.IntegerField()),
+                    ),
+                    default=0,
+                    output_field=models.IntegerField(),
                 ),
-                default=0,
-                output_field=models.IntegerField(),
-            ),
-        ).order_by("operating_system", "-version_as_int", "operating_system_version")
+            )
+            .order_by("operating_system", "-version_as_int", "operating_system_version")
+        )
         return qs
 
     def operating_system_version(self, obj):
@@ -1378,7 +1643,7 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         # Get user count and IP count
         user_count = (
             AccessLog.objects.filter(user_agent_normalized=obj)
-            .select_related('user')
+            .select_related("user")
             .values("user")
             .distinct()
             .count()
@@ -1386,7 +1651,7 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
 
         ip_count = (
             AccessLog.objects.filter(user_agent_normalized=obj)
-            .select_related('ip')
+            .select_related("ip")
             .values("ip")
             .distinct()
             .count()
@@ -1395,7 +1660,7 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         # Get top 10 paths accessed with this user agent
         top_paths = (
             AccessLog.objects.filter(user_agent_normalized=obj)
-            .select_related('path')
+            .select_related("path")
             .values("path__path")
             .annotate(count=Count("path"))
             .order_by("-count")[:10]
@@ -1458,7 +1723,7 @@ class LogUserAgentAdmin(DetailActionsAdminMixin, ReadOnlyAdmin):
         # Get users who have used this user agent with their usage counts
         users = (
             AccessLog.objects.filter(user_agent_normalized=obj)
-            .select_related('user')
+            .select_related("user")
             .values("user__id", "user__user_name")
             .annotate(usage_count=Count("id"), last_used=models.Max("timestamp"))
             .order_by("-usage_count")
