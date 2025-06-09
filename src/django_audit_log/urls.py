@@ -15,12 +15,4 @@ urlpatterns = [
     # Toggle exclusions
     path('toggle-path-exclusion/<int:path_id>/', views.toggle_path_exclusion, name='toggle_path_exclusion'),
     path('toggle-user-agent-exclusion/<int:user_agent_id>/', views.toggle_user_agent_exclusion, name='toggle_user_agent_exclusion'),
-    
-    # Bulk delete operations
-    path('bulk-delete-user-logs/', views.bulk_delete_user_logs, name='bulk_delete_user_logs'),
-    path('bulk-delete-path-logs/', views.bulk_delete_path_logs, name='bulk_delete_path_logs'),
-    path('bulk-delete-user-agent-logs/', views.bulk_delete_user_agent_logs, name='bulk_delete_user_agent_logs'),
-    
-    # Special operations
-    path('clear-anonymous-logs/', views.clear_anonymous_logs, name='clear_anonymous_logs'),
 ] 

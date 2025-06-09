@@ -222,4 +222,4 @@ def toggle_user_agent_exclusion(request, user_agent_id):
     # Redirect back to the admin change page or changelist
     if 'next' in request.POST:
         return redirect(request.POST['next'])
-    return redirect('admin:django_audit_log_loguseragent_change', user_agent_id)
+    return redirect('admin:django_audit_log_loguseragent_change', user_agent_id) 
